@@ -1,4 +1,30 @@
-# example values
+server:
+  port: 8080
+
+logging:
+  level:
+    root: warn
+
+spring:
+
+  application:
+    name: SearchEngine
+
+  datasource:
+    url: jdbc:mysql://localhost:3306/search_engine?useSSL=false&requireSSL=false&allowPublicKeyRetrieval=true
+    username: root
+    password: password
+  jpa:
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQL8Dialect
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+
+  liquibase:
+    enabled: false
+    change-log: classpath:/db/changelog/db.changelog-master.xml
 
 indexing-settings:
   sites:
@@ -8,3 +34,5 @@ indexing-settings:
       name: Skillbox
     - url: https://www.playback.ru
       name: PlayBack.Ru
+    - url: https://sendel.ru
+      name: SenDel.Ru
