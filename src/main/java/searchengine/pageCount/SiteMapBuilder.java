@@ -22,22 +22,19 @@ public class SiteMapBuilder {
     private final String url;
     private final String startUrl;
 
-
-
     public SiteMapBuilder(String url, String startUrl) {
         this.url = url;
         this.startUrl = startUrl;
     }
 
     public List<String> buildSiteMap() {
-        System.out.println("Сканирование начато...");
+        System.out.println("Сканирование " + startUrl + " начато...");
         SiteMapRecursiveAction mainScan = new SiteMapRecursiveAction(url);
         pool.invoke(mainScan);
         pool.shutdown();
-        System.out.println("Сканирование окончено.");
+        System.out.println("Сканирование " + startUrl + " окончено.");
         return siteMap;
     }
-
 
     private class SiteMapRecursiveAction extends RecursiveAction {
 

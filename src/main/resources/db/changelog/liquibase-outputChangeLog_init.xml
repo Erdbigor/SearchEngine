@@ -1,0 +1,83 @@
+<?xml version="1.1" encoding="UTF-8" standalone="no"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog" xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext" xmlns:pro="http://www.liquibase.org/xml/ns/pro" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd http://www.liquibase.org/xml/ns/pro http://www.liquibase.org/xml/ns/pro/liquibase-pro-latest.xsd http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+    <changeSet author="Igor (generated)" id="1718796289769-1">
+        <createTable tableName="page">
+            <column autoIncrement="true" name="id" type="BIGINT">
+                <constraints nullable="false" primaryKey="true" primaryKeyName="page_pkey"/>
+            </column>
+            <column name="code" type="INTEGER">
+                <constraints nullable="false"/>
+            </column>
+            <column name="content" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="path" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="site_id" type="BIGINT"/>
+        </createTable>
+    </changeSet>
+    <changeSet author="Igor (generated)" id="1718796289769-2">
+        <createTable tableName="site">
+            <column autoIncrement="true" name="id" type="BIGINT">
+                <constraints nullable="false" primaryKey="true" primaryKeyName="site_pkey"/>
+            </column>
+            <column name="last_error" type="VARCHAR(255)"/>
+            <column name="name" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="status" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="status_time" type="TIMESTAMP WITHOUT TIME ZONE">
+                <constraints nullable="false"/>
+            </column>
+            <column name="url" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
+    <changeSet author="Igor (generated)" id="1718796289769-3">
+        <createIndex indexName="path_index" tableName="page">
+            <column name="path"/>
+        </createIndex>
+    </changeSet>
+    <changeSet author="Igor (generated)" id="1718796289769-4">
+        <createTable tableName="index">
+            <column autoIncrement="true" name="id" type="BIGINT">
+                <constraints nullable="false" primaryKey="true" primaryKeyName="index_pkey"/>
+            </column>
+            <column name="rank" type="FLOAT4">
+                <constraints nullable="false"/>
+            </column>
+            <column name="lemma_id" type="BIGINT"/>
+            <column name="page_id" type="BIGINT"/>
+        </createTable>
+    </changeSet>
+    <changeSet author="Igor (generated)" id="1718796289769-5">
+        <createTable tableName="lemma">
+            <column autoIncrement="true" name="id" type="BIGINT">
+                <constraints nullable="false" primaryKey="true" primaryKeyName="lemma_pkey"/>
+            </column>
+            <column name="frequency" type="INTEGER">
+                <constraints nullable="false"/>
+            </column>
+            <column name="lemma" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="site_id" type="BIGINT"/>
+        </createTable>
+    </changeSet>
+    <changeSet author="Igor (generated)" id="1718796289769-6">
+        <addForeignKeyConstraint baseColumnNames="page_id" baseTableName="index" constraintName="fk3uxy5s82mxfodai0iafb232cs" deferrable="false" initiallyDeferred="false" onDelete="NO ACTION" onUpdate="NO ACTION" referencedColumnNames="id" referencedTableName="page" validate="true"/>
+    </changeSet>
+    <changeSet author="Igor (generated)" id="1718796289769-7">
+        <addForeignKeyConstraint baseColumnNames="site_id" baseTableName="lemma" constraintName="fkfbq251d28jauqlxirb1k2cjag" deferrable="false" initiallyDeferred="false" onDelete="NO ACTION" onUpdate="NO ACTION" referencedColumnNames="id" referencedTableName="site" validate="true"/>
+    </changeSet>
+    <changeSet author="Igor (generated)" id="1718796289769-8">
+        <addForeignKeyConstraint baseColumnNames="lemma_id" baseTableName="index" constraintName="fkiqgm34dkvjdt7kobg71xlbr33" deferrable="false" initiallyDeferred="false" onDelete="NO ACTION" onUpdate="NO ACTION" referencedColumnNames="id" referencedTableName="lemma" validate="true"/>
+    </changeSet>
+    <changeSet author="Igor (generated)" id="1718796289769-9">
+        <addForeignKeyConstraint baseColumnNames="site_id" baseTableName="page" constraintName="fkj2jx0gqa4h7wg8ls0k3y221h2" deferrable="false" initiallyDeferred="false" onDelete="NO ACTION" onUpdate="NO ACTION" referencedColumnNames="id" referencedTableName="site" validate="true"/>
+    </changeSet>
+</databaseChangeLog>

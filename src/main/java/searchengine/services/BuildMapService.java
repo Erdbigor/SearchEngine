@@ -13,14 +13,17 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 @Service
-@RequiredArgsConstructor
 @EnableAsync
 public class BuildMapService {
 
     public boolean isScanning;
     private final ExecutorService executorService = Executors.newSingleThreadExecutor();
+
+    private SitesList sitesList = new SitesList();
     @Autowired
-    private final SitesList sitesList = new SitesList();
+    public BuildMapService(SitesList sitesList) {
+        this.sitesList = sitesList;
+    }
 
     public void scheduleScanSite() {
         executorService.submit(() -> {

@@ -6,25 +6,24 @@ logging:
     root: warn
 
 spring:
-
   application:
     name: SearchEngine
 
   datasource:
-    url: jdbc:mysql://localhost:3306/search_engine?useSSL=false&requireSSL=false&allowPublicKeyRetrieval=true
-    username: root
-    password: password
+    url: jdbc:postgresql://localhost:5432/searchengine
+    username: postgres
+    driver-class-name: org.postgresql.Driver
+    password: postgres
+
   jpa:
-    properties:
-      hibernate:
-        dialect: org.hibernate.dialect.MySQL8Dialect
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
     show-sql: true
 
   liquibase:
-    enabled: false
-    change-log: classpath:/db/changelog/db.changelog-master.xml
+    enabled: true
+    change-log: classpath:db/changelog/db.changelog-master.xml
 
 indexing-settings:
   sites:
