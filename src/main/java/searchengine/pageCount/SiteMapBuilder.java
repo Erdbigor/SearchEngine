@@ -1,18 +1,19 @@
 package searchengine.pageCount;
 
-import org.jsoup.HttpStatusException;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
+import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Service;
+import searchengine.repository.SiteRepository;
+import searchengine.services.BuildMapService;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.RecursiveAction;
 import java.util.concurrent.TimeUnit;
-
 
 public class SiteMapBuilder {
 
@@ -21,10 +22,13 @@ public class SiteMapBuilder {
     private final List<String> visitLinks = new ArrayList<>();
     private final String url;
     private final String startUrl;
+    private final BuildMapService buildMapService = new BuildMapService();
+    private final SiteRepository siteRepository;
 
-    public SiteMapBuilder(String url, String startUrl) {
+    public SiteMapBuilder(String url, String startUrl, SiteRepository siteRepository) {
         this.url = url;
         this.startUrl = startUrl;
+        this.siteRepository = siteRepository;
     }
 
     public List<String> buildSiteMap() {
@@ -89,21 +93,9 @@ public class SiteMapBuilder {
                     }
                 }
             }
-        } catch (java.net.SocketTimeoutException es) {
-            es.printStackTrace();
-
-        } catch (HttpStatusException e) {
-            if (e.getStatusCode() != 404) {
-                e.printStackTrace();
-            }
-        } catch (IOException e) {
-            if (e instanceof java.net.ConnectException && e.getMessage().contains("Connection timed out")) {
-                System.err.println("Ошибка при подключении к URL: " + e.getMessage());
-                e.printStackTrace();
-            }
-        } catch (Exception ex) {
-            System.err.println("Произошла ошибка: " + ex.getMessage());
-            ex.printStackTrace();
+        } catch (Exception e) {
+//            System.err.println("Ошибка: " + e.getClass().getName());
+            buildMapService.updateLastError(e.getClass().getName(), startUrl, siteRepository);
         }
         return urlFoundLinks;
     }
