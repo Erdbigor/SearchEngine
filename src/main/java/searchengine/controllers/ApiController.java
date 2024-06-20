@@ -11,12 +11,15 @@ import searchengine.mappers.IndexingMapper;
 import searchengine.services.BuildMapService;
 import searchengine.services.StatisticsService;
 
+import java.util.concurrent.CountDownLatch;
+
 @RestController
 @RequestMapping("/api")
 public class ApiController {
 
     private final StatisticsService statisticsService;
     private final BuildMapService buildMapService;
+
     @Autowired
     public ApiController(StatisticsService statisticsService, BuildMapService buildMapService) {
         this.statisticsService = statisticsService;
@@ -27,10 +30,11 @@ public class ApiController {
     public ResponseEntity<StatisticsResponse> statistics() {
         return ResponseEntity.ok(statisticsService.getStatistics());
     }
+
     @GetMapping("/startIndexing")
     public IndexingDTO startIndexing() {
-        boolean isScanning = buildMapService.isScanning();
-        if (isScanning) {
+        CountDownLatch latch = buildMapService.getLatch();
+        if (latch.getCount() != 0) {
             return IndexingMapper.map(true);
         } else {
             buildMapService.scheduleScanSite();

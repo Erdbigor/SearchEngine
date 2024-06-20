@@ -1,51 +1,66 @@
 package searchengine.services;
 
-import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.stereotype.Service;
+import searchengine.config.Site;
 import searchengine.config.SitesList;
 import searchengine.pageCount.SiteMapBuilder;
 
+import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
+import java.util.Map;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @Service
 @EnableAsync
 public class BuildMapService {
 
-    public boolean isScanning;
-    private final ExecutorService executorService = Executors.newSingleThreadExecutor();
+    private final ExecutorService executorService = Executors.newCachedThreadPool();
+    private final SitesList sitesList;
+    private final Map<String, List<String>> scannedPages = new ConcurrentHashMap<>();
+    private CountDownLatch latch = new CountDownLatch(0);
 
-    private SitesList sitesList = new SitesList();
     @Autowired
     public BuildMapService(SitesList sitesList) {
         this.sitesList = sitesList;
     }
 
+    @Async
     public void scheduleScanSite() {
-        executorService.submit(() -> {
-            try {
-                String startUrl = sitesList.getSites().get(2).getUrl();
-                if (startUrl.endsWith("/")) {
-                    startUrl = startUrl.substring(0, startUrl.length() - 1);
+        System.out.println("latchStart: " + latch.getCount());
+        latch = new CountDownLatch(sitesList.getSites().size());
+        for (Site site : sitesList.getSites()) {
+            String siteUrl = site.getUrl();
+            executorService.submit(() -> {
+                try {
+                    String startUrl = siteUrl;
+                    if (startUrl.endsWith("/")) {
+                        startUrl = startUrl.substring(0, startUrl.length() - 1);
+                    }
+                    SiteMapBuilder siteMapBuilder = new SiteMapBuilder(startUrl, startUrl);
+                    ArrayList<String> siteMap = (ArrayList<String>) siteMapBuilder.buildSiteMap();
+                    siteMap.add(startUrl);
+                    scannedPages.put(siteUrl, siteMap);
+                    System.out.println("Количество страниц: " + siteUrl + " " + siteMap.size());
+                    latch.countDown();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    latch.countDown();
                 }
-                isScanning = true;
-                SiteMapBuilder siteMapBuilder = new SiteMapBuilder(startUrl, startUrl);
-                List<String> siteMap = siteMapBuilder.buildSiteMap();
-                isScanning = false;
-                siteMap.add(startUrl);
-                System.out.println("Количество страниц: " + siteMap.size());
-            } catch (Exception e) {
-                e.getStackTrace();
-            }
-        });
-
+            });
+        }
+        try {
+            latch.await();
+            System.out.println("Сканирование сайтов завершено.");
+            System.out.println("latchEnd: " + latch.getCount());
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
     }
 
-    // Метод для остановки сервиса
     public void shutdown() {
         executorService.shutdown();
         try {
@@ -53,13 +68,16 @@ public class BuildMapService {
                 executorService.shutdownNow();
             }
         } catch (InterruptedException e) {
-            // Если поток был прерван, остановите сервис принудительно
             executorService.shutdownNow();
             Thread.currentThread().interrupt();
         }
     }
 
-    public boolean isScanning() {
-        return isScanning;
+    public CountDownLatch getLatch() {
+        return latch;
     }
 }
+
+
+
+

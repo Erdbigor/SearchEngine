@@ -28,11 +28,10 @@ public class SiteMapBuilder {
     }
 
     public List<String> buildSiteMap() {
-        System.out.println("Сканирование " + startUrl + " начато...");
+        System.out.println("Сканирование " + startUrl + " ...");
         SiteMapRecursiveAction mainScan = new SiteMapRecursiveAction(url);
         pool.invoke(mainScan);
         pool.shutdown();
-        System.out.println("Сканирование " + startUrl + " окончено.");
         return siteMap;
     }
 
