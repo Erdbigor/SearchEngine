@@ -15,18 +15,23 @@ import searchengine.repository.SiteRepository;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.*;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
 
 @Service
 @EnableAsync
 @NoArgsConstructor
 public class BuildMapService {
 
+    private final List<SiteMapBuilder> siteMapBuilders = new ArrayList<>();
     private SiteRepository siteRepository;
-    private final ExecutorService executorService = Executors.newCachedThreadPool();
+    private final ExecutorService executor = Executors.newFixedThreadPool(4);
     private SitesList sitesList;
     private CountDownLatch latch = new CountDownLatch(0);
-    private String lastError = "";
+    private static String lastError = "";
+    private static Boolean isInterrupted;
 
     @Autowired
     public BuildMapService(SitesList sitesList, SiteRepository siteRepository) {
@@ -36,32 +41,38 @@ public class BuildMapService {
 
     @Async
     public void scheduleScanSite() {
-        initDB();
+        isInterrupted = false;
         latch = new CountDownLatch(sitesList.getSites().size());
         for (Site site : sitesList.getSites()) {
             String siteUrl = site.getUrl();
+            siteRepository.deleteByUrl(siteUrl);// удаление одноименной записи в таблице 'site;;
             addSite(site, List.of(), true);
-            executorService.submit(() -> {
+            executor.submit(() -> {
                 try {
                     String startUrl = siteUrl;
                     if (startUrl.endsWith("/")) {
                         startUrl = startUrl.substring(0, startUrl.length() - 1);
                     }
-                    SiteMapBuilder siteMapBuilder = new SiteMapBuilder(startUrl, startUrl, siteRepository);
+                    SiteEntity siteEntity = siteRepository.findByUrl(site.getUrl());
+                    SiteMapBuilder siteMapBuilder = new SiteMapBuilder(startUrl, startUrl, siteRepository, siteEntity);
+                    siteMapBuilders.add(siteMapBuilder);
                     ArrayList<String> siteMap = (ArrayList<String>) siteMapBuilder.buildSiteMap();
                     siteMap.add(startUrl);
                     addSite(site, siteMap, false);
-                    System.out.println("Количество страниц: " + siteUrl + " " + siteMap.size());
+                    System.out.println("Сканирование сайта " + siteUrl + " завершено. Количество страниц: "
+                            + siteMap.size() + ".");
                     latch.countDown();
+                    siteMap.forEach(System.out::println);
                 } catch (Exception e) {
-                    e.printStackTrace();
+                    System.err.println(e.getClass().getName());
+                    addSite(site, List.of(), false);
                     latch.countDown();
                 }
             });
         }
         try {
             latch.await();
-            System.out.println("Сканирование сайтов завершено.");
+            System.out.println("Сканирование завершено.");
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
@@ -73,7 +84,17 @@ public class BuildMapService {
                 : siteRepository.findByUrl(site.getUrl());
         siteEntity.setName(site.getName());
         siteEntity.setUrl(site.getUrl());
-        siteEntity.setStatus((isIndexing) ? SiteStatus.INDEXING : SiteStatus.INDEXED);
+        if ((siteMap.size() < 2 && !isIndexing)
+                || (lastError.equals("ConnectException") && !isIndexing)
+                || (lastError.equals("SocketTimeoutException") && !isIndexing)
+                || (lastError.equals("NoRouteToHostException") && !isIndexing)
+                || (isInterrupted)) {
+            siteEntity.setStatus(SiteStatus.FAILED);
+            siteEntity.setLastError((isInterrupted) ? "Interrupted on demand" : lastError);
+        } else {
+            siteEntity.setStatus((isIndexing) ? SiteStatus.INDEXING : SiteStatus.INDEXED);
+            siteEntity.setLastError("");
+        }
         siteEntity.setStatusTime(LocalDateTime.now());
         siteRepository.save(siteEntity);
         siteRepository.flush();
@@ -83,19 +104,29 @@ public class BuildMapService {
         siteRepository.deleteAll();
     }
 
-    public void updateLastError(String error, String siteUrl, SiteRepository siteRepository) {
+    public void updateLastError(String error, String siteUrl
+            , SiteRepository siteRepository, SiteEntity siteEntity) {
         if (lastError.equals(error)) {
             return;
         }
         System.out.println(error);
-        SiteEntity site = siteRepository.findByUrl(siteUrl);
-        site.setLastError(error);
-        siteRepository.save(site);
+        siteEntity.setLastError(error);
+        siteRepository.save(siteEntity);
         lastError = error;
     }
 
-    public CountDownLatch getLatch() {
-        return latch;
+    public Integer getSiteMapBuildersSize() {
+        return siteMapBuilders.size();
+    }
+
+    public void stopScanning() {
+        System.out.println("Остановка сканирования ...");
+        isInterrupted = true;
+        System.out.println("siteMapBuilders.size: " + siteMapBuilders.size());
+        for (SiteMapBuilder siteMapBuilder : siteMapBuilders) {
+            siteMapBuilder.stopScanning();
+        }
+        siteMapBuilders.clear();
     }
 }
 

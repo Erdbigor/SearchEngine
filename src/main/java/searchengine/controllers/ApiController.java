@@ -7,7 +7,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import searchengine.dto.IndexingDTO;
 import searchengine.dto.statistics.StatisticsResponse;
-import searchengine.mappers.IndexingMapper;
+import searchengine.mappers.IndexingStartMapper;
+import searchengine.mappers.IndexingStopMapper;
 import searchengine.services.BuildMapService;
 import searchengine.services.StatisticsService;
 
@@ -33,12 +34,23 @@ public class ApiController {
 
     @GetMapping("/startIndexing")
     public IndexingDTO startIndexing() {
-        CountDownLatch latch = buildMapService.getLatch();
-        if (latch.getCount() != 0) {
-            return IndexingMapper.map(true);
+        int sizeBuildMapServices = buildMapService.getSiteMapBuildersSize();
+        if (sizeBuildMapServices > 0) {
+            return IndexingStartMapper.map(true);
         } else {
             buildMapService.scheduleScanSite();
-            return IndexingMapper.map(false);
+            return IndexingStartMapper.map(false);
+        }
+    }
+
+    @GetMapping("/stopIndexing")
+    public IndexingDTO stopIndexing() {
+        int sizeBuildMapServices = buildMapService.getSiteMapBuildersSize();
+        if (sizeBuildMapServices > 0) {
+            buildMapService.stopScanning();
+            return IndexingStopMapper.map(true);
+        } else {
+            return IndexingStopMapper.map(false);
         }
     }
 }

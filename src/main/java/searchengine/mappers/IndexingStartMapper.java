@@ -2,7 +2,7 @@ package searchengine.mappers;
 
 import searchengine.dto.IndexingDTO;
 
-public class IndexingMapper {
+public class IndexingStartMapper {
 
     private static final IndexingDTO indexingDTO = new IndexingDTO();
 

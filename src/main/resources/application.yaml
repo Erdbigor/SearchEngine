@@ -19,7 +19,7 @@ spring:
     hibernate:
       ddl-auto: validate
     database-platform: org.hibernate.dialect.PostgreSQLDialect
-    show-sql: true
+    show-sql: false
 
   liquibase:
     enabled: true
@@ -27,11 +27,15 @@ spring:
 
 indexing-settings:
   sites:
-    - url: https://www.lenta.ru
-      name: Лента.ру
-    - url: https://www.skillbox.ru
-      name: Skillbox
-    - url: https://www.playback.ru
-      name: PlayBack.Ru
+    #    - url: https://www.playback.ru
+    #      name: PlayBack.Ru
     - url: https://sendel.ru
-      name: SenDel.Ru
+      name: SenDel
+#    - url: https://www.masterdynamic.com
+#      name: MasterDynamic
+#    - url: https://Skillbox.ru
+#      name: Lenta.Ru
+
+userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:127.0) Gecko/20100101 Firefox/127.0"
+referrer: "http://www.google.com"
+links: "a[href]:not([href~=.+\\.[^/]+$]), a[href$=.html], a[href$=.htm], a[href$=.mht], a[href$=.shtml], a[href$=.php], a[href$=.jsp], a[href$=.aspx], a[href$=.pdf]"
