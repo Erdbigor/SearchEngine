@@ -54,4 +54,9 @@ public class ApiController {
             return IndexingStopMapper.map(false);
         }
     }
+
+    @GetMapping("/indexPage")
+    public IndexingDTO indexPage() {
+        return null;
+    }
 }

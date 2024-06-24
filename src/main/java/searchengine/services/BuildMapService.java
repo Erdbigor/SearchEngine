@@ -18,12 +18,9 @@ import searchengine.repository.SiteRepository;
 import javax.sound.sampled.AudioInputStream;
 import javax.sound.sampled.AudioSystem;
 import javax.sound.sampled.Clip;
-import java.applet.Applet;
-import java.applet.AudioClip;
-import java.awt.*;
 import java.io.File;
-import java.net.URL;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -93,7 +90,7 @@ public class BuildMapService {
         }
         try {
             latch.await();
-            System.out.println("Сканирование завершено.");
+            System.out.println(("Сканирование завершено.").toUpperCase());
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
@@ -111,12 +108,16 @@ public class BuildMapService {
                 || (lastError.equals("NoRouteToHostException") && !isIndexing)
                 || (isInterrupted)) {
             siteEntity.setStatus(SiteStatus.FAILED);
-            siteEntity.setLastError((isInterrupted) ? "Interrupted on demand" : lastError);
+            siteEntity.setLastError((isInterrupted)
+                    ? "Индексация остановлена пользователем" : lastError);
         } else {
             siteEntity.setStatus((isIndexing) ? SiteStatus.INDEXING : SiteStatus.INDEXED);
             siteEntity.setLastError("");
         }
-        siteEntity.setStatusTime(LocalDateTime.now());
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+        LocalDateTime now = LocalDateTime.now();
+        String formattedDateTime = now.format(formatter);
+        siteEntity.setStatusTime(LocalDateTime.parse(formattedDateTime, formatter));
         siteRepository.save(siteEntity);
         siteRepository.flush();
     }

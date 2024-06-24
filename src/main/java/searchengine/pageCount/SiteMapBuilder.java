@@ -18,6 +18,7 @@ import searchengine.services.BuildMapService;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -100,8 +101,7 @@ public class SiteMapBuilder {
             });
             if (!scanTaskList.isEmpty()) {
                 invokeAll(scanTaskList);
-                siteEntity.setStatusTime(LocalDateTime.now());//блок периодического обновления поля StatusTime
-                siteRepository.save(siteEntity);
+                setStatusTime(); //периодическое обновление поля 'StatusTime' в 'site'
             }
             try {
                 TimeUnit.MILLISECONDS.sleep(150);
@@ -159,5 +159,12 @@ public class SiteMapBuilder {
             }
         }
         return urlFoundLinks;
+    }
+    public void setStatusTime() { //периодическое обновление поля 'StatusTime' в 'site'
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+        LocalDateTime now = LocalDateTime.now();
+        String formattedDateTime = now.format(formatter);
+        siteEntity.setStatusTime(LocalDateTime.parse(formattedDateTime, formatter));
+        siteRepository.save(siteEntity);
     }
 }
