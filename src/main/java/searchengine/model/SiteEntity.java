@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.Data;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Entity
 @Table(name = "site")
@@ -28,5 +29,8 @@ public class SiteEntity {
 
     @Column(nullable = false)
     private String name;
+
+    @OneToMany(mappedBy = "site", cascade = CascadeType.REMOVE)
+    private List<PageEntity> pages;
 
 }

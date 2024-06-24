@@ -1,17 +1,25 @@
 package searchengine.pageCount;
 
+import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClients;
+import org.apache.http.util.EntityUtils;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 import org.yaml.snakeyaml.Yaml;
+import searchengine.dto.PageDTO;
 import searchengine.model.SiteEntity;
 import searchengine.repository.SiteRepository;
 import searchengine.services.BuildMapService;
 
 import java.io.FileInputStream;
+import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ForkJoinPool;
@@ -21,7 +29,7 @@ import java.util.concurrent.TimeUnit;
 public class SiteMapBuilder {
 
     private final ForkJoinPool pool = new ForkJoinPool();
-    private final List<String> siteMap = new ArrayList<>();
+    private Map<String, PageDTO> siteMap = new HashMap<>();
     private final List<String> visitLinks = new ArrayList<>();
     private final String url;
     private final String startUrl;
@@ -42,14 +50,14 @@ public class SiteMapBuilder {
 
     public void stopScanning() {
         isScanning = false;
-        System.out.println("pool.getRunningThreadCount: " + pool.getRunningThreadCount());
+//        System.out.println("pool.getRunningThreadCount: " + pool.getRunningThreadCount());
         try {
             pool.shutdown();
         } catch (Exception e) {
         }
     }
 
-    public List<String> buildSiteMap() {
+    public Map<String, PageDTO> buildSiteMap() {
         try {
             FileInputStream inputStream = new FileInputStream("src/main/resources/application.yaml");
             Yaml yaml = new Yaml();
@@ -79,17 +87,17 @@ public class SiteMapBuilder {
             if (!isScanning) {
                 return;
             }
-            List<String> urlFoundLinks = parsingUrl(url); // список найденных ссылок для текущего URL
-            siteMap.addAll(urlFoundLinks); // добавляю его в основной siteMap
+            Map<String, PageDTO> urlFoundLinks = parsingUrl(url); // список найденных ссылок для текущего URL
+            siteMap.putAll(urlFoundLinks); // добавляю его в основной siteMap
             visitLinks.add(url); // помечаю текущий URL как посещенный
 
             List<SiteMapRecursiveAction> scanTaskList = new ArrayList<>(); // Подготовка списка для сканирования
-            for (String link : urlFoundLinks) { // Sub-поиск для каждой ссылки из urlFoundLinks
-                if (!visitLinks.contains(link)) {
-                    SiteMapRecursiveAction subScan = new SiteMapRecursiveAction(link);
+            urlFoundLinks.forEach((key, value) -> { // Sub-поиск для каждой ссылки из urlFoundLinks
+                if (!visitLinks.contains((String) key)) {
+                    SiteMapRecursiveAction subScan = new SiteMapRecursiveAction((String) key);
                     scanTaskList.add(subScan);
                 }
-            }
+            });
             if (!scanTaskList.isEmpty()) {
                 invokeAll(scanTaskList);
                 siteEntity.setStatusTime(LocalDateTime.now());//блок периодического обновления поля StatusTime
@@ -103,8 +111,9 @@ public class SiteMapBuilder {
         }
     }
 
-    private List<String> parsingUrl(String url) {
-        List<String> urlFoundLinks = new ArrayList<>();
+    private Map<String, PageDTO> parsingUrl(String url) {
+        Map<String, PageDTO> urlFoundLinks = new HashMap<>();
+        CloseableHttpClient httpClient = HttpClients.createDefault();
         try {
             Document doc = Jsoup.connect(url)
                     .userAgent(userAgent)
@@ -116,18 +125,38 @@ public class SiteMapBuilder {
                     if (absLink.endsWith("/")) {
                         absLink = absLink.substring(0, absLink.length() - 1);
                     }
-                    if (absLink.startsWith(startUrl) && !url.contains(absLink)
-                            && !urlFoundLinks.contains(absLink) && !absLink.contains("#")
+                    if (absLink.startsWith(startUrl) /*&& !url.contains(absLink)*/
+                            && !urlFoundLinks.containsKey(absLink) && !absLink.contains("#")
                             && !absLink.contains("tags") /*&& !absLink.contains("/feed")*/
-                            && !siteMap.contains(absLink)) {
+                            && !siteMap.containsKey(absLink)) {
 //                        System.out.println(absLink);
-                        urlFoundLinks.add(absLink);
+                        HttpGet httpGet = new HttpGet(absLink);
+                        String href = linkElement.attr("href"); // Получаем атрибут href элемента
+                        PageDTO pageDTO = new PageDTO();
+                        try (CloseableHttpResponse response = httpClient.execute(httpGet)) {
+                            int code = response.getStatusLine().getStatusCode();
+                            if (code == 200) {
+                                pageDTO.setContent(EntityUtils.toString(response.getEntity()));
+                            } else {
+                                pageDTO.setContent("Error getting page content: " + response.getStatusLine());
+                            }
+                            pageDTO.setPath(href);
+                            pageDTO.setCode(code);
+                            urlFoundLinks.put(absLink, pageDTO);
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        }
                     }
                 }
             }
+            httpClient.close();
         } catch (Exception e) {
             buildMapService.updateLastError(e.getClass().getSimpleName(), startUrl
                     , siteRepository, siteEntity);
+            try {
+                httpClient.close();
+            } catch (IOException ignored) {
+            }
         }
         return urlFoundLinks;
     }

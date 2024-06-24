@@ -2,6 +2,7 @@ package searchengine.model;
 
 import jakarta.persistence.*;
 import lombok.Data;
+import org.hibernate.annotations.Cascade;
 
 @Data
 @Entity
@@ -14,7 +15,7 @@ public class PageEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY, cascade = CascadeType.REMOVE)
     @JoinColumn(name = "site_id", referencedColumnName = "id")
     private SiteEntity site;
 

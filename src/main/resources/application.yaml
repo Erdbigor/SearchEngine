@@ -3,7 +3,8 @@ server:
 
 logging:
   level:
-    root: warn
+    root: error
+
 
 spring:
   application:
@@ -27,12 +28,14 @@ spring:
 
 indexing-settings:
   sites:
-    #    - url: https://www.playback.ru
-    #      name: PlayBack.Ru
+#    - url: https://www.playback.ru
+#      name: PlayBack.Ru
     - url: https://sendel.ru
       name: SenDel
-#    - url: https://www.masterdynamic.com
-#      name: MasterDynamic
+    - url: https://www.masterdynamic.com/products
+      name: MasterDynamic
+    - url: https://www.hyperquake.com
+      name: Hyperquake
 #    - url: https://Skillbox.ru
 #      name: Lenta.Ru
 

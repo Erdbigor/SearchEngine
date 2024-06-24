@@ -46,6 +46,7 @@ public class ApiController {
     @GetMapping("/stopIndexing")
     public IndexingDTO stopIndexing() {
         int sizeBuildMapServices = buildMapService.getSiteMapBuildersSize();
+//        System.out.println("sizeBuildMapServices " + sizeBuildMapServices);
         if (sizeBuildMapServices > 0) {
             buildMapService.stopScanning();
             return IndexingStopMapper.map(true);
