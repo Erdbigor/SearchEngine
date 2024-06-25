@@ -19,6 +19,7 @@ import javax.sound.sampled.AudioInputStream;
 import javax.sound.sampled.AudioSystem;
 import javax.sound.sampled.Clip;
 import java.io.File;
+import java.net.URL;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -44,7 +45,6 @@ public class BuildMapService {
     private static String lastError = "";
     private static Boolean isInterrupted;
 
-
     @Autowired
     public BuildMapService(SitesList sitesList, SiteRepository siteRepository, PageRepository pageRepository) {
         this.sitesList = sitesList;
@@ -53,40 +53,18 @@ public class BuildMapService {
     }
 
     @Async
-    public void scheduleScanSite() {
+    public void scheduleScanSite(Boolean isIndexPage, String url) {
         isInterrupted = false;
         latch = new CountDownLatch(sitesList.getSites().size());
-        for (Site site : sitesList.getSites()) {
-            String siteUrl = site.getUrl();
-            siteRepository.deleteByUrl(siteUrl);// удаление одноименной записи в таблице 'site;;
-            addSite(site, 0, true);
-            executor.submit(() -> {
-                try {
-                    String startUrl = siteUrl;
-                    if (startUrl.endsWith("/")) {
-                        startUrl = startUrl.substring(0, startUrl.length() - 1);
-                    }
-                    SiteEntity siteEntity = siteRepository.findByUrl(site.getUrl());
-                    SiteMapBuilder siteMapBuilder = new SiteMapBuilder(startUrl, startUrl, siteRepository, siteEntity);
-                    siteMapBuilders.add(siteMapBuilder);
-                    HashMap<String, PageDTO> siteMap = (HashMap<String, PageDTO>) siteMapBuilder.buildSiteMap();
-                    int siteMapSize = siteMap.size();
-                    addSite(site, siteMapSize, false);
-                    addPage(siteMap, siteEntity, siteMapSize);
-                    playSound();
-                    System.out.println("Сканирование сайта " + siteUrl + " завершено. Количество страниц: "
-                            + siteMap.size() + ".");
-                    latch.countDown();
-//                    siteMap.forEach((key, value)-> {
-//                        System.out.println(key);
-//                    });
-                } catch (Exception e) {
-                    System.err.println(e.getClass().getName());
-                    siteMapBuilders.clear();
-                    addSite(site, 0, false);
-                    latch.countDown();
-                }
-            });
+        if (!isIndexPage) {// режим 'startIndexing'
+            for (Site site : sitesList.getSites()) {
+                String siteUrl = site.getUrl();
+                siteRepository.deleteByUrl(siteUrl);// каскадное удаление одноименной записи в таблице 'site' и записей в 'page'
+                addSite(siteUrl, 0, true);
+                scanSite(siteUrl, isIndexPage);
+            }
+        } else {
+            scanSite(url, isIndexPage); // режим 'indexPage'
         }
         try {
             latch.await();
@@ -96,12 +74,46 @@ public class BuildMapService {
         }
     }
 
-    public void addSite(Site site, int siteMapSize, Boolean isIndexing) {
+    public void scanSite(String url, boolean isIndexPage) {
+        executor.submit(() -> {
+            try {
+                String startUrl = url;
+                if (startUrl.endsWith("/")) {
+                    startUrl = startUrl.substring(0, startUrl.length() - 1);
+                }
+                SiteEntity siteEntity;
+                if (isIndexPage) {
+                    siteEntity = siteRepository.findByUrl("https://" + getHostName(url));
+                } else siteEntity = siteRepository.findByUrl(url);
+                SiteMapBuilder siteMapBuilder = new SiteMapBuilder(startUrl, startUrl, siteRepository, siteEntity, isIndexPage);
+                siteMapBuilders.add(siteMapBuilder);
+                HashMap<String, PageDTO> siteMap = (HashMap<String, PageDTO>) siteMapBuilder.buildSiteMap();
+                int siteMapSize = siteMap.size();
+                if (!isIndexPage) {
+                    addSite(url, siteMapSize, false);
+                }
+                addPage(siteMap, siteEntity, siteMapSize, isIndexPage, url);
+                playSound();
+                System.out.println("Сканирование " + url + " завершено. Количество страниц: "
+                        + siteMap.size() + ".");
+                latch.countDown();
+                siteMapBuilders.clear();
+            } catch (Exception e) {
+                e.printStackTrace();
+                System.err.println(e.getClass().getName());
+                siteMapBuilders.clear();
+                addSite(url, 0, false);
+                latch.countDown();
+            }
+        });
+    }
+
+    public void addSite(String url, int siteMapSize, Boolean isIndexing) {
         SiteEntity siteEntity = (isIndexing)
                 ? new SiteEntity()
-                : siteRepository.findByUrl(site.getUrl());
-        siteEntity.setName(site.getName());
-        siteEntity.setUrl(site.getUrl());
+                : siteRepository.findByUrl(url);
+        siteEntity.setName(getHostName(url));
+        siteEntity.setUrl(url);
         if ((siteMapSize < 2 && !isIndexing)
                 || (lastError.equals("ConnectException") && !isIndexing)
                 || (lastError.equals("SocketTimeoutException") && !isIndexing)
@@ -122,17 +134,27 @@ public class BuildMapService {
         siteRepository.flush();
     }
 
-    public void addPage(Map<String, PageDTO> siteMap, SiteEntity siteEntity, int siteMapSize) {
-        if ((siteMapSize < 2)
-                || (lastError.equals("ConnectException"))
+    public void addPage(Map<String, PageDTO> siteMap, SiteEntity siteEntity
+            , int siteMapSize, boolean isIndexPage, String pagePath) {
+        if ((siteMapSize <= 1) && ((lastError.equals("ConnectException"))
                 || (lastError.equals("SocketTimeoutException"))
                 || (lastError.equals("NoRouteToHostException"))
-                || (isInterrupted)) {
+                || (isInterrupted))) {
             return;
         } else {
             siteMap.forEach((key, value) -> {
-                PageEntity pageEntity = new PageEntity();
-                pageEntity.setSite(siteRepository.findByUrl(siteEntity.getUrl()));
+                String newPath = value.getPath();
+                PageEntity pageEntity;
+                if (!isIndexPage) {
+                    pageEntity = new PageEntity();
+                    pageEntity.setSite(siteRepository.findByUrl(siteEntity.getUrl()));
+                } else {
+                    pageEntity = pageRepository.getPageEntityByPath(newPath);
+                    if (pageEntity == null) {
+                        pageEntity = new PageEntity();
+                        pageEntity.setSite(siteRepository.findByUrl("https://" + getHostName(pagePath)));
+                    }
+                }
                 pageEntity.setCode(value.getCode());
                 pageEntity.setPath(value.getPath());
                 pageEntity.setContent(value.getContent());
@@ -164,13 +186,21 @@ public class BuildMapService {
     public void stopScanning() {
         System.out.println("Остановка сканирования ...");
         isInterrupted = true;
-//        System.out.println("siteMapBuilders.size: " + siteMapBuilders.size());
         for (SiteMapBuilder siteMapBuilder : siteMapBuilders) {
             siteMapBuilder.stopScanning();
         }
         siteMapBuilders.clear();
     }
 
+    public String getHostName(String url) {
+        String host = "";
+        try {
+            URL newUrl = new URL(url);
+            host = newUrl.getHost();
+        } catch (Exception ignored) {
+        }
+        return host;
+    }
     public void playSound() {
         try {
             File soundFile =
@@ -180,7 +210,6 @@ public class BuildMapService {
             clip.open(audioIn);
             clip.start();
         } catch (Exception ignored) {
-
         }
     }
 }

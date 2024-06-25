@@ -41,17 +41,19 @@ public class SiteMapBuilder {
     private static String userAgent;
     private static String referrer;
     private static String links;
+    private final boolean isPageIndexing;
 
-    public SiteMapBuilder(String url, String startUrl, SiteRepository siteRepository, SiteEntity siteEntity) {
+    public SiteMapBuilder(String url, String startUrl, SiteRepository siteRepository
+            , SiteEntity siteEntity, boolean isPageIndexing) {
         this.url = url;
         this.startUrl = startUrl;
         this.siteRepository = siteRepository;
         this.siteEntity = siteEntity;
+        this.isPageIndexing = isPageIndexing;
     }
 
     public void stopScanning() {
         isScanning = false;
-//        System.out.println("pool.getRunningThreadCount: " + pool.getRunningThreadCount());
         try {
             pool.shutdown();
         } catch (Exception e) {
@@ -101,7 +103,9 @@ public class SiteMapBuilder {
             });
             if (!scanTaskList.isEmpty()) {
                 invokeAll(scanTaskList);
-                setStatusTime(); //периодическое обновление поля 'StatusTime' в 'site'
+                if (!isPageIndexing) {
+                    setStatusTime(); //периодическое обновление поля 'StatusTime' в 'site'
+                }
             }
             try {
                 TimeUnit.MILLISECONDS.sleep(150);
@@ -151,8 +155,10 @@ public class SiteMapBuilder {
             }
             httpClient.close();
         } catch (Exception e) {
-            buildMapService.updateLastError(e.getClass().getSimpleName(), startUrl
-                    , siteRepository, siteEntity);
+            if (!isPageIndexing) {
+                buildMapService.updateLastError(e.getClass().getSimpleName(), startUrl
+                        , siteRepository, siteEntity);
+            }
             try {
                 httpClient.close();
             } catch (IOException ignored) {

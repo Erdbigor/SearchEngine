@@ -34,8 +34,8 @@ indexing-settings:
       name: SenDel
     - url: https://www.masterdynamic.com/products
       name: MasterDynamic
-    - url: https://www.hyperquake.com
-      name: Hyperquake
+#    - url: https://www.hyperquake.com
+#      name: Hyperquake
 #    - url: https://Skillbox.ru
 #      name: Lenta.Ru
 
