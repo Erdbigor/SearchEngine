@@ -34,9 +34,10 @@ import java.util.concurrent.Executors;
 @Service
 @EnableAsync
 @NoArgsConstructor
-public class BuildMapService {
+public class SitePageService {
 
     private final List<SiteMapBuilder> siteMapBuilders = new ArrayList<>();
+    private LemmaService lemmaService;
     private SiteRepository siteRepository;
     private PageRepository pageRepository;
     private final ExecutorService executor = Executors.newFixedThreadPool(4);
@@ -46,7 +47,8 @@ public class BuildMapService {
     private static Boolean isInterrupted;
 
     @Autowired
-    public BuildMapService(SitesList sitesList, SiteRepository siteRepository, PageRepository pageRepository) {
+    public SitePageService(LemmaService lemmaService, SitesList sitesList, SiteRepository siteRepository, PageRepository pageRepository) {
+        this.lemmaService = lemmaService;
         this.sitesList = sitesList;
         this.siteRepository = siteRepository;
         this.pageRepository = pageRepository;
@@ -160,13 +162,12 @@ public class BuildMapService {
                 pageEntity.setContent(value.getContent());
                 pageRepository.save(pageEntity);
                 pageRepository.flush();
+                lemmaService.searchLemmas(pageEntity);
             });
         }
+
     }
 
-    public void initDB() {
-        siteRepository.deleteAll();
-    }
 
     public void updateLastError(String error, String siteUrl
             , SiteRepository siteRepository, SiteEntity siteEntity) {

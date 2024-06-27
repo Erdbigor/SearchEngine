@@ -11,7 +11,8 @@ import searchengine.dto.statistics.StatisticsResponse;
 import searchengine.mappers.IndexingPageMapper;
 import searchengine.mappers.IndexingStartMapper;
 import searchengine.mappers.IndexingStopMapper;
-import searchengine.services.BuildMapService;
+import searchengine.services.SitePageService;
+import searchengine.services.LemmaService;
 import searchengine.services.StatisticsService;
 
 import java.net.URL;
@@ -21,13 +22,15 @@ import java.net.URL;
 public class ApiController {
 
     private final StatisticsService statisticsService;
-    private final BuildMapService buildMapService;
+    private final SitePageService sitePageService;
+    private final LemmaService lemmaService;
     private final SitesList sitesList;
 
     @Autowired
-    public ApiController(StatisticsService statisticsService, BuildMapService buildMapService, SitesList sitesList) {
+    public ApiController(StatisticsService statisticsService, SitePageService sitePageService, LemmaService lemmaService, SitesList sitesList) {
         this.statisticsService = statisticsService;
-        this.buildMapService = buildMapService;
+        this.sitePageService = sitePageService;
+        this.lemmaService = lemmaService;
         this.sitesList = sitesList;
     }
 
@@ -38,20 +41,20 @@ public class ApiController {
 
     @GetMapping("/startIndexing")
     public IndexingDTO startIndexing() {
-        int sizeBuildMapServices = buildMapService.getSiteMapBuildersSize();
+        int sizeBuildMapServices = sitePageService.getSiteMapBuildersSize();
         if (sizeBuildMapServices > 0) {
             return IndexingStartMapper.map(true);
         } else {
-            buildMapService.scheduleScanSite(false, "");
+            sitePageService.scheduleScanSite(false, "");
             return IndexingStartMapper.map(false);
         }
     }
 
     @GetMapping("/stopIndexing")
     public IndexingDTO stopIndexing() {
-        int sizeBuildMapServices = buildMapService.getSiteMapBuildersSize();
+        int sizeBuildMapServices = sitePageService.getSiteMapBuildersSize();
         if (sizeBuildMapServices > 0) {
-            buildMapService.stopScanning();
+            sitePageService.stopScanning();
             return IndexingStopMapper.map(true);
         } else {
             return IndexingStopMapper.map(false);
@@ -60,7 +63,7 @@ public class ApiController {
 
     @GetMapping("/{path}/**")
     public IndexingDTO indexPage(HttpServletRequest request) {
-        int sizeBuildMapServices = buildMapService.getSiteMapBuildersSize();
+        int sizeBuildMapServices = sitePageService.getSiteMapBuildersSize();
         if (sizeBuildMapServices > 0) {
             return IndexingStartMapper.map(true);
         } else {
@@ -73,7 +76,7 @@ public class ApiController {
                     host = newUrl.getHost();
                     if (path.contains(host)) {
                         String url = "https://" + path;
-                        buildMapService.scheduleScanSite(true, url);
+                        sitePageService.scheduleScanSite(true, url);
                         return IndexingPageMapper.map(true);
                     }
                 } catch (Exception ignored) {
@@ -84,4 +87,5 @@ public class ApiController {
             return IndexingPageMapper.map(false);
         }
     }
+
 }

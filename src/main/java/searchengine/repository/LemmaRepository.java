@@ -6,4 +6,8 @@ import searchengine.model.LemmaEntity;
 
 @Repository
 public interface LemmaRepository extends JpaRepository<LemmaEntity, Long> {
+
+    LemmaEntity findByLemma(String lemma);
+    LemmaEntity getByLemma(String lemma);
+
 }

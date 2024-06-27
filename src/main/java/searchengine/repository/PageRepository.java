@@ -8,4 +8,5 @@ import searchengine.model.PageEntity;
 public interface PageRepository extends JpaRepository<PageEntity,Long> {
     boolean findByPath(String url);
     PageEntity getPageEntityByPath(String url);
+
 }

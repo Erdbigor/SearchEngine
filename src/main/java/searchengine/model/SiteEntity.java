@@ -35,4 +35,7 @@ public class SiteEntity {
     @OneToMany(mappedBy = "site", cascade = CascadeType.REMOVE)
     private List<PageEntity> pages;
 
+    @OneToMany(mappedBy = "site", cascade = CascadeType.REMOVE)
+    private List<LemmaEntity> lemmas;
+
 }

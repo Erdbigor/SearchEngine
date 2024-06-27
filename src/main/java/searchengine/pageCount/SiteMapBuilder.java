@@ -13,7 +13,7 @@ import org.yaml.snakeyaml.Yaml;
 import searchengine.dto.PageDTO;
 import searchengine.model.SiteEntity;
 import searchengine.repository.SiteRepository;
-import searchengine.services.BuildMapService;
+import searchengine.services.SitePageService;
 
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -34,7 +34,7 @@ public class SiteMapBuilder {
     private final List<String> visitLinks = new ArrayList<>();
     private final String url;
     private final String startUrl;
-    private final BuildMapService buildMapService = new BuildMapService();
+    private final SitePageService sitePageService = new SitePageService();
     private volatile boolean isScanning = true;
     private final SiteRepository siteRepository;
     private final SiteEntity siteEntity;
@@ -156,7 +156,7 @@ public class SiteMapBuilder {
             httpClient.close();
         } catch (Exception e) {
             if (!isPageIndexing) {
-                buildMapService.updateLastError(e.getClass().getSimpleName(), startUrl
+                sitePageService.updateLastError(e.getClass().getSimpleName(), startUrl
                         , siteRepository, siteEntity);
             }
             try {
