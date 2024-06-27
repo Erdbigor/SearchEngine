@@ -12,7 +12,11 @@ import searchengine.repository.LemmaRepository;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 @Service
 @RequiredArgsConstructor
@@ -22,41 +26,58 @@ public class LemmaIndexService {
     private final IndexRepository indexRepository;
 
     public void searchLemmas(PageEntity pageEntity) {
-        LuceneMorphology luceneMorph = null;
-        try {
-            luceneMorph = new RussianLuceneMorphology();
-            String tegRegex = "<[^>]*>";
-            String spaceRegex = "\\s+";
-            String exceptRegex = "([,.;:!'\"=+_#*|&\\-?\"()\\[\\]{}/\\\\])";
-            String regex = "\\s";
 
-            String sentence = pageEntity.getContent();
-            sentence = sentence.replaceAll(tegRegex, "");
-            sentence = sentence.replaceAll(exceptRegex, " ");
-            sentence = sentence.replaceAll(spaceRegex, " ");
-            String[] words = sentence.toLowerCase().split(regex);
-            List<String> listWords = new ArrayList<>();
-            for (String word : words) {
-                if (!word.trim().isEmpty()) {
-                    listWords.add(word);
-                }
+        String tegRegex = "<[^>]*>";
+        String spaceRegex = "\\s+";
+        String exceptRegex = "([,.;:!'\"=+_#*|&\\-?\"()\\[\\]{}/\\\\])";
+        String regex = "\\s";
+        String sentence = pageEntity.getContent();
+        sentence = sentence.replaceAll(tegRegex, "");
+        sentence = sentence.replaceAll(exceptRegex, " ");
+        sentence = sentence.replaceAll(spaceRegex, " ");
+        String[] words = sentence.toLowerCase().split(regex);
+        List<String> listWords = new ArrayList<>();
+        for (String word : words) {
+            if (!word.trim().isEmpty()) {
+                listWords.add(word);
             }
-            for (String listWord : listWords) {
-                if (luceneMorph.checkString(listWord)) {
-                    List<String> wordsInfo = luceneMorph.getMorphInfo(listWord);
-                    if (wordsInfo.get(0).contains("|l")
-                            || wordsInfo.get(0).contains("|p")
-                            || wordsInfo.get(0).contains("|n")
-                            || wordsInfo.get(0).contains("|o")) {
-                    } else {
-                        List<String> wordBaseForms = luceneMorph.getNormalForms(listWord);
-                        addLemmas(wordBaseForms, pageEntity);
-                    }
-                }
-            }
-        } catch (IOException e) {
-            throw new RuntimeException(e);
         }
+        LuceneMorphProcess(listWords, pageEntity);
+    }
+
+    private void LuceneMorphProcess(List<String> listWords, PageEntity pageEntity) {
+        ExecutorService executorService =
+                Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+        List<Callable<Void>> tasks = new ArrayList<>();
+        try {
+            LuceneMorphology luceneMorph = new RussianLuceneMorphology();
+            for (String word : listWords) {
+                tasks.add(() -> {
+                    if (luceneMorph.checkString(word)) {
+                        List<String> wordsInfo = luceneMorph.getMorphInfo(word);
+                        if (wordsInfo.get(0).contains("|l")
+                                || wordsInfo.get(0).contains("|p")
+                                || wordsInfo.get(0).contains("|n")
+                                || wordsInfo.get(0).contains("|o")) {
+                        } else {
+                            List<String> wordBaseForms = luceneMorph.getNormalForms(word);
+                            addLemmas(wordBaseForms, pageEntity);
+                        }
+                    }
+                    return null;
+                });
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        try {
+            executorService.invokeAll(tasks);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        } finally {
+            executorService.shutdown();
+        }
+
     }
 
     public void addLemmas(List<String> wordBaseForms, PageEntity pageEntity) {
@@ -79,7 +100,7 @@ public class LemmaIndexService {
     public void addIndex(PageEntity pageEntity, LemmaEntity lemmaEntity) {
 
         IndexEntity indexEntity;
-        if (indexRepository.findByLemma_IdAndPage_Id(pageEntity.getId(), lemmaEntity.getId())!=null) {
+        if (indexRepository.findByLemma_IdAndPage_Id(pageEntity.getId(), lemmaEntity.getId()) != null) {
             indexEntity = indexRepository.getByLemma_IdAndPage_Id(pageEntity.getId(), lemmaEntity.getId());
             float rank = indexEntity.getRank();
             indexEntity.setRank(rank + lemmaEntity.getFrequency());

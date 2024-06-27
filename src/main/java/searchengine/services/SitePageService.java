@@ -19,6 +19,7 @@ import javax.sound.sampled.AudioSystem;
 import javax.sound.sampled.Clip;
 import java.io.File;
 import java.net.URL;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -43,9 +44,11 @@ public class SitePageService {
     private CountDownLatch latch = new CountDownLatch(0);
     private static String lastError = "";
     private static Boolean isInterrupted;
+    private LocalDateTime start;
 
     @Async
     public void scheduleScanSite(Boolean isIndexPage, String url) {
+        start = LocalDateTime.now();
         isInterrupted = false;
         latch = new CountDownLatch(sitesList.getSites().size());
         if (!isIndexPage) {// режим 'startIndexing'
@@ -61,6 +64,8 @@ public class SitePageService {
         try {
             latch.await();
             System.out.println(("Сканирование завершено.").toUpperCase());
+            Duration duration = Duration.between(start,LocalDateTime.now());
+            System.out.println(duration.getSeconds() + " СЕКУНД.");
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
