@@ -1,6 +1,5 @@
 package searchengine.pageCount;
 
-import lombok.NoArgsConstructor;
 import lombok.RequiredArgsConstructor;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;

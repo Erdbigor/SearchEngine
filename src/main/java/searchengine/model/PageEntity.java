@@ -4,6 +4,8 @@ import jakarta.persistence.*;
 import lombok.Data;
 import org.hibernate.annotations.Cascade;
 
+import java.util.List;
+
 @Data
 @Entity
 @Table(name = "page", indexes = {
@@ -27,5 +29,8 @@ public class PageEntity {
 
     @Column(nullable = false, length = 16777215)
     private String content;
+
+    @OneToMany(mappedBy = "page", cascade = CascadeType.REMOVE)
+    private List<IndexEntity> indexes;
 
 }

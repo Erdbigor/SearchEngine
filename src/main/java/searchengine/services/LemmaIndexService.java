@@ -4,22 +4,22 @@ import lombok.RequiredArgsConstructor;
 import org.apache.lucene.morphology.LuceneMorphology;
 import org.apache.lucene.morphology.russian.RussianLuceneMorphology;
 import org.springframework.stereotype.Service;
+import searchengine.model.IndexEntity;
 import searchengine.model.LemmaEntity;
 import searchengine.model.PageEntity;
+import searchengine.repository.IndexRepository;
 import searchengine.repository.LemmaRepository;
-import searchengine.repository.PageRepository;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
-public class LemmaService {
+public class LemmaIndexService {
 
     private final LemmaRepository lemmaRepository;
+    private final IndexRepository indexRepository;
 
     public void searchLemmas(PageEntity pageEntity) {
         LuceneMorphology luceneMorph = null;
@@ -72,5 +72,24 @@ public class LemmaService {
             lemmaEntity.setSite(pageEntity.getSite());
         }
         lemmaRepository.save(lemmaEntity);
+        lemmaRepository.flush();
+        addIndex(pageEntity, lemmaEntity);
+    }
+
+    public void addIndex(PageEntity pageEntity, LemmaEntity lemmaEntity) {
+
+        IndexEntity indexEntity;
+        if (indexRepository.findByLemma_IdAndPage_Id(pageEntity.getId(), lemmaEntity.getId())!=null) {
+            indexEntity = indexRepository.getByLemma_IdAndPage_Id(pageEntity.getId(), lemmaEntity.getId());
+            float rank = indexEntity.getRank();
+            indexEntity.setRank(rank + lemmaEntity.getFrequency());
+        } else {
+            indexEntity = new IndexEntity();
+            indexEntity.setLemma(lemmaEntity);
+            indexEntity.setPage(pageEntity);
+            indexEntity.setRank(lemmaEntity.getFrequency());
+        }
+        indexRepository.save(indexEntity);
+        indexRepository.flush();
     }
 }

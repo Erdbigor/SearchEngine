@@ -3,6 +3,8 @@ package searchengine.model;
 import jakarta.persistence.*;
 import lombok.Data;
 
+import java.util.List;
+
 @Data
 @Entity
 @Table(name = "lemma")
@@ -20,5 +22,8 @@ public class LemmaEntity {
 
     @Column(nullable = false)
     private int frequency;
+
+    @OneToMany(mappedBy = "lemma", cascade = CascadeType.REMOVE)
+    private List<IndexEntity> indexes;
 
 }

@@ -12,7 +12,7 @@ import searchengine.mappers.IndexingPageMapper;
 import searchengine.mappers.IndexingStartMapper;
 import searchengine.mappers.IndexingStopMapper;
 import searchengine.services.SitePageService;
-import searchengine.services.LemmaService;
+import searchengine.services.LemmaIndexService;
 import searchengine.services.StatisticsService;
 
 import java.net.URL;
@@ -24,7 +24,7 @@ public class ApiController {
 
     private final StatisticsService statisticsService;
     private final SitePageService sitePageService;
-    private final LemmaService lemmaService;
+    private final LemmaIndexService lemmaIndexService;
     private final SitesList sitesList;
     private final IndexingStartMapper indexingStartMapper;
     private final IndexingStopMapper indexingStopMapper;

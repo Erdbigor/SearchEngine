@@ -1,8 +1,6 @@
 package searchengine.services;
 
-import lombok.NoArgsConstructor;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.stereotype.Service;
@@ -31,14 +29,13 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-
 @Service
 @EnableAsync
 @RequiredArgsConstructor
 public class SitePageService {
 
     private final List<SiteMapBuilder> siteMapBuilders = new ArrayList<>();
-    private final LemmaService lemmaService;
+    private final LemmaIndexService lemmaIndexService;
     private final SiteRepository siteRepository;
     private final PageRepository pageRepository;
     private final ExecutorService executor = Executors.newFixedThreadPool(4);
@@ -155,12 +152,11 @@ public class SitePageService {
                 pageEntity.setContent(value.getContent());
                 pageRepository.save(pageEntity);
                 pageRepository.flush();
-                lemmaService.searchLemmas(pageEntity);
+                lemmaIndexService.searchLemmas(pageEntity);
             });
         }
 
     }
-
 
     public void updateLastError(String error, String siteUrl
             , SiteRepository siteRepository, SiteEntity siteEntity) {
@@ -195,6 +191,7 @@ public class SitePageService {
         }
         return host;
     }
+
     public void playSound() {
         try {
             File soundFile =
@@ -206,6 +203,7 @@ public class SitePageService {
         } catch (Exception ignored) {
         }
     }
+
 }
 
 
