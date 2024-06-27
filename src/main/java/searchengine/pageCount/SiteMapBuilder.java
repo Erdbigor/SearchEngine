@@ -1,5 +1,7 @@
 package searchengine.pageCount;
 
+import lombok.NoArgsConstructor;
+import lombok.RequiredArgsConstructor;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.client.CloseableHttpClient;
@@ -27,6 +29,7 @@ import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.RecursiveAction;
 import java.util.concurrent.TimeUnit;
 
+@RequiredArgsConstructor
 public class SiteMapBuilder {
 
     private final ForkJoinPool pool = new ForkJoinPool();
@@ -34,7 +37,7 @@ public class SiteMapBuilder {
     private final List<String> visitLinks = new ArrayList<>();
     private final String url;
     private final String startUrl;
-    private final SitePageService sitePageService = new SitePageService();
+    private SitePageService sitePageService;
     private volatile boolean isScanning = true;
     private final SiteRepository siteRepository;
     private final SiteEntity siteEntity;
@@ -42,15 +45,6 @@ public class SiteMapBuilder {
     private static String referrer;
     private static String links;
     private final boolean isPageIndexing;
-
-    public SiteMapBuilder(String url, String startUrl, SiteRepository siteRepository
-            , SiteEntity siteEntity, boolean isPageIndexing) {
-        this.url = url;
-        this.startUrl = startUrl;
-        this.siteRepository = siteRepository;
-        this.siteEntity = siteEntity;
-        this.isPageIndexing = isPageIndexing;
-    }
 
     public void stopScanning() {
         isScanning = false;
@@ -78,12 +72,9 @@ public class SiteMapBuilder {
         return siteMap;
     }
 
+    @RequiredArgsConstructor
     private class SiteMapRecursiveAction extends RecursiveAction {
         private final String url;
-
-        public SiteMapRecursiveAction(String url) {
-            this.url = url;
-        }
 
         @Override
         protected void compute() {
@@ -166,6 +157,7 @@ public class SiteMapBuilder {
         }
         return urlFoundLinks;
     }
+
     public void setStatusTime() { //периодическое обновление поля 'StatusTime' в 'site'
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
         LocalDateTime now = LocalDateTime.now();

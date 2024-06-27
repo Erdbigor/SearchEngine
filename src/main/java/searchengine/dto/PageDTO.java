@@ -1,7 +1,6 @@
 package searchengine.dto;
 
 import lombok.Data;
-import searchengine.model.SiteEntity;
 
 @Data
 public class PageDTO {

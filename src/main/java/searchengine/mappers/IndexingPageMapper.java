@@ -1,12 +1,13 @@
 package searchengine.mappers;
 
+import org.springframework.stereotype.Component;
 import searchengine.dto.IndexingDTO;
-
+@Component
 public class IndexingPageMapper {
 
-    private static final IndexingDTO indexingDTO = new IndexingDTO();
+    private final IndexingDTO indexingDTO = new IndexingDTO();
 
-    public static IndexingDTO map(boolean isScanning) {
+    public IndexingDTO map(boolean isScanning) {
         if (isScanning) {
             indexingDTO.setResult(true);
             indexingDTO.setError("Индексация страницы начата!");

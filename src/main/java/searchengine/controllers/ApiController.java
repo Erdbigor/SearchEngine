@@ -1,7 +1,7 @@
 package searchengine.controllers;
 
 import jakarta.servlet.http.HttpServletRequest;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import searchengine.config.Site;
@@ -17,6 +17,7 @@ import searchengine.services.StatisticsService;
 
 import java.net.URL;
 
+@RequiredArgsConstructor
 @RestController
 @RequestMapping("/api")
 public class ApiController {
@@ -25,14 +26,9 @@ public class ApiController {
     private final SitePageService sitePageService;
     private final LemmaService lemmaService;
     private final SitesList sitesList;
-
-    @Autowired
-    public ApiController(StatisticsService statisticsService, SitePageService sitePageService, LemmaService lemmaService, SitesList sitesList) {
-        this.statisticsService = statisticsService;
-        this.sitePageService = sitePageService;
-        this.lemmaService = lemmaService;
-        this.sitesList = sitesList;
-    }
+    private final IndexingStartMapper indexingStartMapper;
+    private final IndexingStopMapper indexingStopMapper;
+    private final IndexingPageMapper indexingPageMapper;
 
     @GetMapping("/statistics")
     public ResponseEntity<StatisticsResponse> statistics() {
@@ -43,10 +39,10 @@ public class ApiController {
     public IndexingDTO startIndexing() {
         int sizeBuildMapServices = sitePageService.getSiteMapBuildersSize();
         if (sizeBuildMapServices > 0) {
-            return IndexingStartMapper.map(true);
+            return indexingStartMapper.map(true);
         } else {
             sitePageService.scheduleScanSite(false, "");
-            return IndexingStartMapper.map(false);
+            return indexingStartMapper.map(false);
         }
     }
 
@@ -55,9 +51,9 @@ public class ApiController {
         int sizeBuildMapServices = sitePageService.getSiteMapBuildersSize();
         if (sizeBuildMapServices > 0) {
             sitePageService.stopScanning();
-            return IndexingStopMapper.map(true);
+            return indexingStopMapper.map(true);
         } else {
-            return IndexingStopMapper.map(false);
+            return indexingStopMapper.map(false);
         }
     }
 
@@ -65,7 +61,7 @@ public class ApiController {
     public IndexingDTO indexPage(HttpServletRequest request) {
         int sizeBuildMapServices = sitePageService.getSiteMapBuildersSize();
         if (sizeBuildMapServices > 0) {
-            return IndexingStartMapper.map(true);
+            return indexingStartMapper.map(true);
         } else {
             String fullPath = request.getRequestURI(); // полный путь запроса
             String path = fullPath.substring("/api/".length()); //'example.com/about'
@@ -77,14 +73,14 @@ public class ApiController {
                     if (path.contains(host)) {
                         String url = "https://" + path;
                         sitePageService.scheduleScanSite(true, url);
-                        return IndexingPageMapper.map(true);
+                        return indexingPageMapper.map(true);
                     }
                 } catch (Exception ignored) {
                     System.err.println("Данная страница находится за пределами сайтов, " +
                             "указанных в конфигурационном файле");
                 }
             }
-            return IndexingPageMapper.map(false);
+            return indexingPageMapper.map(false);
         }
     }
 

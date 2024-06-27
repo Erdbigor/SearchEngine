@@ -1,6 +1,7 @@
 package searchengine.services;
 
 import lombok.NoArgsConstructor;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.EnableAsync;
@@ -33,26 +34,18 @@ import java.util.concurrent.Executors;
 
 @Service
 @EnableAsync
-@NoArgsConstructor
+@RequiredArgsConstructor
 public class SitePageService {
 
     private final List<SiteMapBuilder> siteMapBuilders = new ArrayList<>();
-    private LemmaService lemmaService;
-    private SiteRepository siteRepository;
-    private PageRepository pageRepository;
+    private final LemmaService lemmaService;
+    private final SiteRepository siteRepository;
+    private final PageRepository pageRepository;
     private final ExecutorService executor = Executors.newFixedThreadPool(4);
-    private SitesList sitesList;
+    private final SitesList sitesList;
     private CountDownLatch latch = new CountDownLatch(0);
     private static String lastError = "";
     private static Boolean isInterrupted;
-
-    @Autowired
-    public SitePageService(LemmaService lemmaService, SitesList sitesList, SiteRepository siteRepository, PageRepository pageRepository) {
-        this.lemmaService = lemmaService;
-        this.sitesList = sitesList;
-        this.siteRepository = siteRepository;
-        this.pageRepository = pageRepository;
-    }
 
     @Async
     public void scheduleScanSite(Boolean isIndexPage, String url) {
