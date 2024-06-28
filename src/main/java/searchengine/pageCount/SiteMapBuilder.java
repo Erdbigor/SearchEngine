@@ -146,8 +146,7 @@ public class SiteMapBuilder {
             httpClient.close();
         } catch (Exception e) {
             if (!isPageIndexing) {
-                sitePageService.updateLastError(e.getClass().getSimpleName(), startUrl
-                        , siteRepository, siteEntity);
+                setLastError(e);
             }
             try {
                 httpClient.close();
@@ -157,7 +156,13 @@ public class SiteMapBuilder {
         return urlFoundLinks;
     }
 
-    public void setStatusTime() { //периодическое обновление поля 'StatusTime' в 'site'
+    private void setLastError(Exception e) {
+        sitePageService = new SitePageService(
+                null, null, null, null);
+        sitePageService.updateLastError(e.getClass().getSimpleName(), startUrl
+                , siteRepository, siteEntity);
+    }
+    private void setStatusTime() { //периодическое обновление поля 'StatusTime' в 'site'
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
         LocalDateTime now = LocalDateTime.now();
         String formattedDateTime = now.format(formatter);

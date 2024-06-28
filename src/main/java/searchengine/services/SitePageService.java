@@ -1,5 +1,6 @@
 package searchengine.services;
 
+import lombok.NoArgsConstructor;
 import lombok.RequiredArgsConstructor;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.EnableAsync;
@@ -115,6 +116,7 @@ public class SitePageService {
                 || (lastError.equals("ConnectException") && !isIndexing)
                 || (lastError.equals("SocketTimeoutException") && !isIndexing)
                 || (lastError.equals("NoRouteToHostException") && !isIndexing)
+                || (lastError.equals("HttpHostConnectException") && !isIndexing)
                 || (isInterrupted)) {
             siteEntity.setStatus(SiteStatus.FAILED);
             siteEntity.setLastError((isInterrupted)

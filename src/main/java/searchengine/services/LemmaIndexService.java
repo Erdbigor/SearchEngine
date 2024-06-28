@@ -10,9 +10,7 @@ import searchengine.model.PageEntity;
 import searchengine.repository.IndexRepository;
 import searchengine.repository.LemmaRepository;
 
-import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
@@ -42,10 +40,10 @@ public class LemmaIndexService {
                 listWords.add(word);
             }
         }
-        LuceneMorphProcess(listWords, pageEntity);
+        luceneMorphProcess(listWords, pageEntity);
     }
 
-    private void LuceneMorphProcess(List<String> listWords, PageEntity pageEntity) {
+    private void luceneMorphProcess(List<String> listWords, PageEntity pageEntity) {
         ExecutorService executorService =
                 Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
         List<Callable<Void>> tasks = new ArrayList<>();
