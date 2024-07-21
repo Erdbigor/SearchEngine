@@ -1,7 +1,8 @@
 package searchengine.services;
 
-import lombok.NoArgsConstructor;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.stereotype.Service;
@@ -36,6 +37,7 @@ import java.util.concurrent.Executors;
 @RequiredArgsConstructor
 public class SitePageService {
 
+    private static final Logger valueLogger = LoggerFactory.getLogger("value-logger");
     private final List<SiteMapBuilder> siteMapBuilders = new ArrayList<>();
     private final LemmaIndexService lemmaIndexService;
     private final SiteRepository siteRepository;
@@ -49,12 +51,14 @@ public class SitePageService {
 
     @Async
     public void scheduleScanSite(Boolean isIndexPage, String url) {
+        valueLogger.info("scheduleScanSite running");
         start = LocalDateTime.now();
         isInterrupted = false;
         latch = new CountDownLatch(sitesList.getSites().size());
         if (!isIndexPage) {// режим 'startIndexing'
             for (Site site : sitesList.getSites()) {
                 String siteUrl = site.getUrl();
+                valueLogger.info("Удаление записей " + siteUrl + "...");
                 siteRepository.deleteByUrl(siteUrl);// каскадное удаление одноименной записи в таблице 'site' и записей в 'page'
                 addSite(siteUrl, 0, true);
                 scanSite(siteUrl, isIndexPage);
@@ -64,15 +68,16 @@ public class SitePageService {
         }
         try {
             latch.await();
-            System.out.println(("Сканирование завершено.").toUpperCase());
+            valueLogger.info(("Сканирование завершено.").toUpperCase());
             Duration duration = Duration.between(start,LocalDateTime.now());
-            System.out.println(duration.getSeconds() + " СЕКУНД.");
+            valueLogger.info(duration.getSeconds() + " СЕКУНД.");
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
     }
 
     public void scanSite(String url, boolean isIndexPage) {
+        valueLogger.info("scanSite running.");
         executor.submit(() -> {
             try {
                 String startUrl = url;
@@ -87,13 +92,13 @@ public class SitePageService {
                 siteMapBuilders.add(siteMapBuilder);
                 HashMap<String, PageDTO> siteMap = (HashMap<String, PageDTO>) siteMapBuilder.buildSiteMap();
                 int siteMapSize = siteMap.size();
+                valueLogger.info("Сканирование " + url + " завершено. Размер списка: "
+                        + siteMapSize + ".");
                 if (!isIndexPage) {
                     addSite(url, siteMapSize, false);
                 }
                 addPage(siteMap, siteEntity, siteMapSize, isIndexPage, url);
                 playSound();
-                System.out.println("Сканирование " + url + " завершено. Количество страниц: "
-                        + siteMap.size() + ".");
                 latch.countDown();
                 siteMapBuilders.clear();
             } catch (Exception e) {
@@ -135,6 +140,7 @@ public class SitePageService {
 
     public void addPage(Map<String, PageDTO> siteMap, SiteEntity siteEntity
             , int siteMapSize, boolean isIndexPage, String pagePath) {
+        valueLogger.info("Анализ ссылок...");
         if ((siteMapSize <= 1) && ((lastError.equals("ConnectException"))
                 || (lastError.equals("SocketTimeoutException"))
                 || (lastError.equals("NoRouteToHostException"))
@@ -159,7 +165,8 @@ public class SitePageService {
                 pageEntity.setContent(value.getContent());
                 pageRepository.save(pageEntity);
                 pageRepository.flush();
-                lemmaIndexService.searchLemmas(pageEntity);
+                valueLogger.info("add: " + pageEntity.getPath());
+                lemmaIndexService.getWordBaseForms(pageEntity);
             });
         }
 
@@ -170,7 +177,7 @@ public class SitePageService {
         if (lastError.equals(error)) {
             return;
         }
-        System.out.println(error);
+        valueLogger.info(error);
         siteEntity.setLastError(error);
         siteRepository.save(siteEntity);
         lastError = error;
@@ -181,7 +188,7 @@ public class SitePageService {
     }
 
     public void stopScanning() {
-        System.out.println("Остановка сканирования ...");
+        valueLogger.info("Остановка сканирования ...");
         isInterrupted = true;
         for (SiteMapBuilder siteMapBuilder : siteMapBuilders) {
             siteMapBuilder.stopScanning();

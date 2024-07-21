@@ -2,17 +2,21 @@ package searchengine.controllers;
 
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import searchengine.config.Site;
 import searchengine.config.SitesList;
 import searchengine.dto.IndexingDTO;
+import searchengine.dto.SearchDTO;
 import searchengine.dto.statistics.StatisticsResponse;
 import searchengine.mappers.IndexingPageMapper;
 import searchengine.mappers.IndexingStartMapper;
 import searchengine.mappers.IndexingStopMapper;
+import searchengine.mappers.SearchMapper;
+import searchengine.services.SearchService;
 import searchengine.services.SitePageService;
-import searchengine.services.LemmaIndexService;
 import searchengine.services.StatisticsService;
 
 import java.net.URL;
@@ -22,13 +26,15 @@ import java.net.URL;
 @RequestMapping("/api")
 public class ApiController {
 
+    private static final Logger valueLogger = LoggerFactory.getLogger("value-logger");
     private final StatisticsService statisticsService;
     private final SitePageService sitePageService;
-    private final LemmaIndexService lemmaIndexService;
     private final SitesList sitesList;
     private final IndexingStartMapper indexingStartMapper;
     private final IndexingStopMapper indexingStopMapper;
     private final IndexingPageMapper indexingPageMapper;
+    private final SearchService searchService;
+    private final SearchMapper searchMapper;
 
     @GetMapping("/statistics")
     public ResponseEntity<StatisticsResponse> statistics() {
@@ -37,6 +43,7 @@ public class ApiController {
 
     @GetMapping("/startIndexing")
     public IndexingDTO startIndexing() {
+        System.out.println("startIndexing running.");
         int sizeBuildMapServices = sitePageService.getSiteMapBuildersSize();
         if (sizeBuildMapServices > 0) {
             return indexingStartMapper.map(true);
@@ -84,4 +91,28 @@ public class ApiController {
         }
     }
 
+    @GetMapping("/search")
+    public SearchDTO search(@RequestParam(value = "query", required = false) String query,
+                            @RequestParam(value = "site", required = false) String site,
+                            @RequestParam(value = "offset", required = false) Integer offset,
+                            @RequestParam(value = "limit", required = false) Integer limit) {
+        if (site != null && !site.isEmpty()) {
+            site = site.startsWith("http") ? site : "http://" + site;
+        } else {
+            site = "all_site";
+        }
+        offset = offset == null ? 0 : offset;
+        limit = limit == null ? 20 : limit;
+        double frequencyThreshold = 0.7;
+        valueLogger.info("query: " + query);
+        valueLogger.info("site: " + site);
+        valueLogger.info("offset: " + offset);
+        valueLogger.info("limit: " + limit);
+        valueLogger.info("frequencyThreshold: " + frequencyThreshold);
+        if (query.isEmpty()) {
+            return searchMapper.map(false);
+        }
+        searchService.getSearchResult(query, site, offset, limit, frequencyThreshold);
+        return searchMapper.map(true);
+    }
 }

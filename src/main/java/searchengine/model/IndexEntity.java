@@ -5,7 +5,7 @@ import lombok.Data;
 
 @Data
 @Entity
-@Table(name = "`index`")
+@Table(name = "index", uniqueConstraints = {@UniqueConstraint(columnNames = {"page_id", "lemma_id"})})
 public class IndexEntity {
 
     @Id

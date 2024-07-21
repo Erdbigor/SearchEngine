@@ -2,9 +2,11 @@ server:
   port: 8080
 
 logging:
+  pattern:
+    console: "%msg%n"
   level:
-    root: error
-
+    root: ERROR
+    "value-logger": INFO
 
 spring:
   application:
@@ -28,17 +30,18 @@ spring:
 
 indexing-settings:
   sites:
-    - url: https://www.svetlovka.ru/about/
-      name: СветЛовка
+    - url: https://olkhovskaya.com
+      name: olkhovskaya
     - url: https://sendel.ru/shorts/
       name: SenDel
-    - url: https://www.nikoartgallery.com/gallery/
-      name: NikoArtGallery.com
-#    - url: https://www.hyperquake.com
-#      name: Hyperquake
-#    - url: https://Skillbox.ru
-#      name: Lenta.Ru
+    - url: https://gobi.ee/ru
+      name: GOBI
+#    - url: https://skillbox.ru/sale/main/
+#      name: Skillbox.ru
+#    - url: https://suvorovmuseum.ru/
+#      name: Suvorovmuseum.ru
 
 userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:127.0) Gecko/20100101 Firefox/127.0"
 referrer: "http://www.google.com"
 links: "a[href]:not([href~=.+\\.[^/]+$]), a[href$=.html], a[href$=.htm], a[href$=.mht], a[href$=.shtml], a[href$=.php], a[href$=.jsp], a[href$=.aspx], a[href$=.pdf]"
+

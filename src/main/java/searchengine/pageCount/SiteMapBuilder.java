@@ -123,7 +123,7 @@ public class SiteMapBuilder {
                             && !urlFoundLinks.containsKey(absLink) && !absLink.contains("#")
                             && !absLink.contains("tags") /*&& !absLink.contains("/feed")*/
                             && !siteMap.containsKey(absLink)) {
-//                        System.out.println(absLink);
+                        System.out.println("add: " + absLink);
                         HttpGet httpGet = new HttpGet(absLink);
                         String href = linkElement.attr("href"); // Получаем атрибут href элемента
                         PageDTO pageDTO = new PageDTO();
@@ -162,6 +162,7 @@ public class SiteMapBuilder {
         sitePageService.updateLastError(e.getClass().getSimpleName(), startUrl
                 , siteRepository, siteEntity);
     }
+
     private void setStatusTime() { //периодическое обновление поля 'StatusTime' в 'site'
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
         LocalDateTime now = LocalDateTime.now();

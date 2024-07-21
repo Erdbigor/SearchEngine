@@ -1,6 +1,7 @@
 package searchengine.repository;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 import searchengine.model.LemmaEntity;
 import searchengine.model.SiteEntity;
@@ -16,4 +17,8 @@ public interface LemmaRepository extends JpaRepository<LemmaEntity, Long> {
     LemmaEntity getBySite(SiteEntity siteEntity);
 
     List<LemmaEntity> findBySite(SiteEntity siteEntity);
+    @Query("SELECT MAX(i.frequency) FROM LemmaEntity i")
+    int findMaxFrequency();
+
+    LemmaEntity getById(long id);
 }

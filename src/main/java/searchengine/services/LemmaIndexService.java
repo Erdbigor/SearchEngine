@@ -22,28 +22,12 @@ public class LemmaIndexService {
 
     private final LemmaRepository lemmaRepository;
     private final IndexRepository indexRepository;
+    private final WordsService wordsService;
 
-    public void searchLemmas(PageEntity pageEntity) {
+    public void getWordBaseForms(PageEntity pageEntity) {
+        List<String> listWords = wordsService.getWords(
+                pageEntity, null, null, null, null);
 
-        String tegRegex = "<[^>]*>";
-        String spaceRegex = "\\s+";
-        String exceptRegex = "([,.;:!'\"=+_#*|&\\-?\"()\\[\\]{}/\\\\])";
-        String regex = "\\s";
-        String sentence = pageEntity.getContent();
-        sentence = sentence.replaceAll(tegRegex, "");
-        sentence = sentence.replaceAll(exceptRegex, " ");
-        sentence = sentence.replaceAll(spaceRegex, " ");
-        String[] words = sentence.toLowerCase().split(regex);
-        List<String> listWords = new ArrayList<>();
-        for (String word : words) {
-            if (!word.trim().isEmpty()) {
-                listWords.add(word);
-            }
-        }
-        luceneMorphProcess(listWords, pageEntity);
-    }
-
-    private void luceneMorphProcess(List<String> listWords, PageEntity pageEntity) {
         ExecutorService executorService =
                 Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
         List<Callable<Void>> tasks = new ArrayList<>();
@@ -53,12 +37,12 @@ public class LemmaIndexService {
                 tasks.add(() -> {
                     if (luceneMorph.checkString(word)) {
                         List<String> wordsInfo = luceneMorph.getMorphInfo(word);
-                        if (wordsInfo.get(0).contains("|l")
-                                || wordsInfo.get(0).contains("|p")
-                                || wordsInfo.get(0).contains("|n")
-                                || wordsInfo.get(0).contains("|o")) {
+                        String subString = wordsInfo.get(0);
+                        List<String> wordBaseForms;
+                        if (subString.matches("^.\\|.*")
+                                || subString.matches(".*\\|(p|n|o|l).*")) {
                         } else {
-                            List<String> wordBaseForms = luceneMorph.getNormalForms(word);
+                            wordBaseForms = luceneMorph.getNormalForms(word);
                             addLemmas(wordBaseForms, pageEntity);
                         }
                     }
@@ -78,28 +62,32 @@ public class LemmaIndexService {
 
     }
 
-    public void addLemmas(List<String> wordBaseForms, PageEntity pageEntity) {
+    private synchronized void addLemmas(List<String> wordBaseForms, PageEntity pageEntity) {
         LemmaEntity lemmaEntity;
-        if (lemmaRepository.findByLemma(wordBaseForms.get(0)) != null) {
-            lemmaEntity = lemmaRepository.getByLemma(wordBaseForms.get(0));
-            int frequency = lemmaEntity.getFrequency();
-            lemmaEntity.setFrequency(frequency + 1);
-        } else {
-            lemmaEntity = new LemmaEntity();
-            lemmaEntity.setFrequency(1);
-            lemmaEntity.setLemma(wordBaseForms.get(0));
-            lemmaEntity.setSite(pageEntity.getSite());
+        for (String lemma : wordBaseForms) {
+            if (lemmaRepository.findByLemma(lemma) != null) {
+                lemmaEntity = lemmaRepository.getByLemma(lemma);
+                if (indexRepository.getByLemma_IdAndPage_Id(lemmaEntity.getId(), pageEntity.getId()) == null) {
+                    int frequency = lemmaEntity.getFrequency();
+                    lemmaEntity.setFrequency(frequency + 1);
+                }
+            } else {
+                lemmaEntity = new LemmaEntity();
+                lemmaEntity.setFrequency(1);
+                lemmaEntity.setLemma(lemma);
+                lemmaEntity.setSite(pageEntity.getSite());
+            }
+            lemmaRepository.save(lemmaEntity);
+            lemmaRepository.flush();
+            addIndex(pageEntity, lemmaEntity);
         }
-        lemmaRepository.save(lemmaEntity);
-        lemmaRepository.flush();
-        addIndex(pageEntity, lemmaEntity);
     }
 
-    public void addIndex(PageEntity pageEntity, LemmaEntity lemmaEntity) {
+    private synchronized void addIndex(PageEntity pageEntity, LemmaEntity lemmaEntity) {
 
         IndexEntity indexEntity;
-        if (indexRepository.findByLemma_IdAndPage_Id(pageEntity.getId(), lemmaEntity.getId()) != null) {
-            indexEntity = indexRepository.getByLemma_IdAndPage_Id(pageEntity.getId(), lemmaEntity.getId());
+        if (indexRepository.getByLemma_IdAndPage_Id(lemmaEntity.getId(), pageEntity.getId()) != null) {
+            indexEntity = indexRepository.getByLemma_IdAndPage_Id(lemmaEntity.getId(), pageEntity.getId());
             float rank = indexEntity.getRank();
             indexEntity.setRank(rank + lemmaEntity.getFrequency());
         } else {
