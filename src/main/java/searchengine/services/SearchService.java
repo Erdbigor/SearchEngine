@@ -6,11 +6,11 @@ import org.apache.lucene.morphology.russian.RussianLuceneMorphology;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-import searchengine.dto.DataDTO;
-import searchengine.dto.IndexDTO;
-import searchengine.dto.LemmaDTO;
-import searchengine.dto.statistics.LemmaRankDTO;
-import searchengine.dto.statistics.RelevanceDTO;
+import searchengine.dto.search.DataDTO;
+import searchengine.dto.db.IndexDTO;
+import searchengine.dto.db.LemmaDTO;
+import searchengine.dto.search.LemmaRankDTO;
+import searchengine.dto.search.RelevanceDTO;
 import searchengine.model.IndexEntity;
 import searchengine.model.LemmaEntity;
 import searchengine.model.PageEntity;
@@ -33,11 +33,11 @@ public class SearchService {
     private final SiteRepository siteRepository;
     private final WordsService wordsService;
     private final SnippedService snippedService;
-    private List<Long> uniqFoundPageIdList;
-    private List<Long> uniqFoundLemmaIdList;
     public List<DataDTO> resultDataDTOList;
+    public boolean isSearch;
 
-    public void getSearchResult(String query, String site, int offset, int limit, double frequencyThreshold) {
+    public List<DataDTO> searchResult(String query, String site, int offset, int limit, double frequencyThreshold) {
+        isSearch = true;
         List<String> wordsBaseForms = getWordBaseForms(query, site, offset, limit);
         valueLogger.info("wordsBaseForms: " + wordsBaseForms);
         List<LemmaDTO> filteredSortedLemmas = filteringSortingLemmas(wordsBaseForms, frequencyThreshold);
@@ -53,9 +53,14 @@ public class SearchService {
             List<RelevanceDTO> relevanceList = getRelevanceList(foundByQueryIndexList);
             valueLogger.info("relevanceList.size(): " + relevanceList.size());
             relevanceList.forEach(relevanceDTO -> valueLogger.info(relevanceDTO.toString()));
-            resultDataDTOList = snippedService.resultDataDTOs(uniqFoundPageIdList
-                    , uniqFoundLemmaIdList);
+            if (relevanceList.size()>0) {
+                resultDataDTOList = snippedService.resultDataDTOs(relevanceList);
+            } else resultDataDTOList = new ArrayList<>();
+
+            isSearch = false;
+            valueLogger.info("Поиск завершен!".toUpperCase());
         }
+        return resultDataDTOList;
     }
 
     private List<String> getWordBaseForms(String query, String site, Integer offset, Integer limit) {
@@ -178,14 +183,14 @@ public class SearchService {
 
     private List<RelevanceDTO> getRelevanceList(List<IndexDTO> foundIndexDTOList) {
 
-        uniqFoundPageIdList = foundIndexDTOList.stream()
+        List<Long> uniqFoundPageIdList = foundIndexDTOList.stream()
                 .map(IndexDTO::getPageId)
                 .distinct()
                 .toList();
         valueLogger.info("uniqFoundPageIdList.size(): " + uniqFoundPageIdList.size());
         valueLogger.info("uniqFoundPageIdList: " + uniqFoundPageIdList);
 
-        uniqFoundLemmaIdList = foundIndexDTOList.stream()
+        List<Long> uniqFoundLemmaIdList = foundIndexDTOList.stream()
                 .map(IndexDTO::getLemmaId)
                 .distinct()
                 .toList();
@@ -210,10 +215,10 @@ public class SearchService {
             relevanceDTO.setAbsRelevance(absRelevance);
             relevanceList.add(relevanceDTO);
         }
-        double maxAbsRank = relevanceList.stream()
-                .mapToDouble(RelevanceDTO::getAbsRelevance)
-                .max()
-                .orElse(-1);
+        float maxAbsRank = relevanceList.stream()
+                .map(RelevanceDTO::getAbsRelevance)
+                .max(Comparator.naturalOrder())
+                .orElse((float) -1);
 
         for (RelevanceDTO relevanceDTO : relevanceList) {
             relevanceDTO.setRelRelevance((relevanceDTO.getAbsRelevance() / maxAbsRank));
@@ -227,6 +232,7 @@ public class SearchService {
         for (Long uFLL : uniqFoundLemmaList) {
             LemmaRankDTO lemmaRankDTO = new LemmaRankDTO();
             if (uFLL == indexDTO.getLemmaId() && indexDTO.getRank() != 0) {
+                lemmaRankDTO.setLemmaId(indexDTO.getLemmaId());
                 lemmaRankDTO.setRank(indexDTO.getRank());
                 lemmaRankDTOList.add(lemmaRankDTO);
             }

@@ -9,7 +9,9 @@ import org.jsoup.select.Elements;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-import searchengine.dto.DataDTO;
+import searchengine.dto.search.DataDTO;
+import searchengine.dto.search.LemmaRankDTO;
+import searchengine.dto.search.RelevanceDTO;
 import searchengine.model.LemmaEntity;
 import searchengine.model.PageEntity;
 import searchengine.repository.LemmaRepository;
@@ -30,18 +32,17 @@ public class SnippedService {
     SnowballStemmer stemmer = new SnowballStemmer(SnowballStemmer.ALGORITHM.RUSSIAN);
 
 
-    public List<DataDTO> resultDataDTOs(List<Long> uniqFoundPageIdList,
-                                        List<Long> uniqFoundLemmaIdList) {
+    public List<DataDTO> resultDataDTOs(List<RelevanceDTO> relevanceList) {
         List<String> snippetsWithWordsSelected;
         List<DataDTO> resultDataDTOList = new ArrayList<>();
         int maxLength = 50;
 
-        List<String> stems = getStems(uniqFoundLemmaIdList);
+        List<String> stems = getStems(relevanceList);
         valueLogger.info("stems: " + stems);
 
-        for (Long pageId : uniqFoundPageIdList) {
+        for (RelevanceDTO relevanceDTO : relevanceList) {
+            long pageId = relevanceDTO.getPageId();
             PageEntity pageEntity = pageRepository.getById(pageId);
-
             String contentPage = pageEntity.getContent();
             Document doc = Jsoup.parse(contentPage);
 
@@ -58,7 +59,7 @@ public class SnippedService {
                 dataDTO.setSiteName(pageEntity.getSite().getName());
                 dataDTO.setUri(pageEntity.getPath());
                 dataDTO.setTitle(doc.title());
-//            dataDTO.setRelevance();
+                dataDTO.setRelevance(relevanceDTO.getRelRelevance());
                 dataDTO.setSnippet(snippetWithWordsSelected);
                 dataDTOList.add(dataDTO);
             }
@@ -123,14 +124,15 @@ public class SnippedService {
         return content;
     }
 
-    private List<String> getStems(List<Long> uniqFoundLemmaIdList) {
-        List<String> lemmas = new ArrayList<>();
+    private List<String> getStems(List<RelevanceDTO> relevanceList) {
+
         List<String> stems = new ArrayList<>();
-        for (Long lemmaId : uniqFoundLemmaIdList) {
+        List<LemmaRankDTO> uniqFoundLemmaIdList = new ArrayList<>(relevanceList.get(0).getLemmasRank());
+
+        for (LemmaRankDTO lemmaRankDTO : uniqFoundLemmaIdList) {
             for (LemmaEntity lemmaEntity : lemmaRepository.findAll()) {
-                if (lemmaId.equals(lemmaEntity.getId())) {
+                if (lemmaRankDTO.getLemmaId() == (lemmaEntity.getId())) {
                     String lemma = lemmaEntity.getLemma();
-                    lemmas.add(lemma);
                     String stem = stemmer.stem(lemma).toString();
                     stems.add(stem);
                 }

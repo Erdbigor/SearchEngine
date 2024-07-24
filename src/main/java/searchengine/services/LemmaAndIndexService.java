@@ -18,7 +18,7 @@ import java.util.concurrent.Executors;
 
 @Service
 @RequiredArgsConstructor
-public class LemmaIndexService {
+public class LemmaAndIndexService {
 
     private final LemmaRepository lemmaRepository;
     private final IndexRepository indexRepository;

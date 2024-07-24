@@ -8,7 +8,7 @@ import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.stereotype.Service;
 import searchengine.config.Site;
 import searchengine.config.SitesList;
-import searchengine.dto.PageDTO;
+import searchengine.dto.db.PageDTO;
 import searchengine.model.PageEntity;
 import searchengine.model.SiteEntity;
 import searchengine.model.SiteStatus;
@@ -35,11 +35,11 @@ import java.util.concurrent.Executors;
 @Service
 @EnableAsync
 @RequiredArgsConstructor
-public class SitePageService {
+public class SiteAndPageService {
 
     private static final Logger valueLogger = LoggerFactory.getLogger("value-logger");
     private final List<SiteMapBuilder> siteMapBuilders = new ArrayList<>();
-    private final LemmaIndexService lemmaIndexService;
+    private final LemmaAndIndexService lemmaAndIndexService;
     private final SiteRepository siteRepository;
     private final PageRepository pageRepository;
     private final ExecutorService executor = Executors.newFixedThreadPool(4);
@@ -47,15 +47,17 @@ public class SitePageService {
     private CountDownLatch latch = new CountDownLatch(0);
     private static String lastError = "";
     private static Boolean isInterrupted;
-    private LocalDateTime start;
+    public boolean isIndexing;
 
     @Async
     public void scheduleScanSite(Boolean isIndexPage, String url) {
-        valueLogger.info("scheduleScanSite running");
-        start = LocalDateTime.now();
+        valueLogger.info("Индексация начата.".toUpperCase());
+        isIndexing = true;
+        LocalDateTime start = LocalDateTime.now();
         isInterrupted = false;
-        latch = new CountDownLatch(sitesList.getSites().size());
+
         if (!isIndexPage) {// режим 'startIndexing'
+            latch = new CountDownLatch(sitesList.getSites().size());
             for (Site site : sitesList.getSites()) {
                 String siteUrl = site.getUrl();
                 valueLogger.info("Удаление записей " + siteUrl + "...");
@@ -64,20 +66,22 @@ public class SitePageService {
                 scanSite(siteUrl, isIndexPage);
             }
         } else {
+            latch = new CountDownLatch(1);
             scanSite(url, isIndexPage); // режим 'indexPage'
         }
         try {
             latch.await();
-            valueLogger.info(("Сканирование завершено.").toUpperCase());
-            Duration duration = Duration.between(start,LocalDateTime.now());
-            valueLogger.info(duration.getSeconds() + " СЕКУНД.");
+            isIndexing = false;
+            Duration duration = Duration.between(start, LocalDateTime.now());
+            valueLogger.info(("Индексация завершена").toUpperCase() + " за ".toUpperCase()
+                    + duration.getSeconds() + " сек.".toUpperCase());
         } catch (InterruptedException e) {
-            e.printStackTrace();
+            System.err.println(e.getClass());
         }
     }
 
     public void scanSite(String url, boolean isIndexPage) {
-        valueLogger.info("scanSite running.");
+
         executor.submit(() -> {
             try {
                 String startUrl = url;
@@ -92,18 +96,19 @@ public class SitePageService {
                 siteMapBuilders.add(siteMapBuilder);
                 HashMap<String, PageDTO> siteMap = (HashMap<String, PageDTO>) siteMapBuilder.buildSiteMap();
                 int siteMapSize = siteMap.size();
-                valueLogger.info("Сканирование " + url + " завершено. Размер списка: "
+                valueLogger.info("Сканирование " + url + " завершено. Найдено ссылок: "
                         + siteMapSize + ".");
-                if (!isIndexPage) {
+                if (!isIndexPage && siteMapSize != 0) {
                     addSite(url, siteMapSize, false);
+                } else if (isIndexPage && siteMapSize != 0){
+                    addPage(siteMap, siteEntity, siteMapSize, isIndexPage, url);
                 }
-                addPage(siteMap, siteEntity, siteMapSize, isIndexPage, url);
                 playSound();
                 latch.countDown();
                 siteMapBuilders.clear();
             } catch (Exception e) {
                 e.printStackTrace();
-                System.err.println(e.getClass().getName());
+                valueLogger.info(e.getClass().getName());
                 siteMapBuilders.clear();
                 addSite(url, 0, false);
                 latch.countDown();
@@ -166,7 +171,7 @@ public class SitePageService {
                 pageRepository.save(pageEntity);
                 pageRepository.flush();
                 valueLogger.info("add: " + pageEntity.getPath());
-                lemmaIndexService.getWordBaseForms(pageEntity);
+                lemmaAndIndexService.getWordBaseForms(pageEntity);
             });
         }
 
@@ -183,8 +188,8 @@ public class SitePageService {
         lastError = error;
     }
 
-    public Integer getSiteMapBuildersSize() {
-        return siteMapBuilders.size();
+    public boolean isIndexing() {
+        return isIndexing;
     }
 
     public void stopScanning() {

@@ -1,6 +1,7 @@
-package searchengine.dto.statistics;
+package searchengine.dto.search;
 
 import lombok.Data;
+import searchengine.dto.search.LemmaRankDTO;
 
 import java.util.List;
 
@@ -10,6 +11,6 @@ public class RelevanceDTO {
     long pageId;
     List<LemmaRankDTO> lemmasRank;
     float absRelevance;
-    double relRelevance;
+    float relRelevance;
 
 }

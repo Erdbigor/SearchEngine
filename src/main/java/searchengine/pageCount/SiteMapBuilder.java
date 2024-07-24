@@ -11,10 +11,10 @@ import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 import org.yaml.snakeyaml.Yaml;
-import searchengine.dto.PageDTO;
+import searchengine.dto.db.PageDTO;
 import searchengine.model.SiteEntity;
 import searchengine.repository.SiteRepository;
-import searchengine.services.SitePageService;
+import searchengine.services.SiteAndPageService;
 
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -36,7 +36,7 @@ public class SiteMapBuilder {
     private final List<String> visitLinks = new ArrayList<>();
     private final String url;
     private final String startUrl;
-    private SitePageService sitePageService;
+    private SiteAndPageService siteAndPageService;
     private volatile boolean isScanning = true;
     private final SiteRepository siteRepository;
     private final SiteEntity siteEntity;
@@ -157,9 +157,9 @@ public class SiteMapBuilder {
     }
 
     private void setLastError(Exception e) {
-        sitePageService = new SitePageService(
+        siteAndPageService = new SiteAndPageService(
                 null, null, null, null);
-        sitePageService.updateLastError(e.getClass().getSimpleName(), startUrl
+        siteAndPageService.updateLastError(e.getClass().getSimpleName(), startUrl
                 , siteRepository, siteEntity);
     }
 

@@ -22,7 +22,7 @@ import java.util.List;
 public class StatisticsServiceImpl implements StatisticsService {
 
     private final SitesList sites;
-    private final SitePageService sitePageService;
+    private final SiteAndPageService siteAndPageService;
     private final SiteRepository siteRepository;
     private final PageRepository pageRepository;
     private final LemmaRepository lemmaRepository;
@@ -33,7 +33,7 @@ public class StatisticsServiceImpl implements StatisticsService {
         TotalStatistics total = new TotalStatistics();
         total.setSites(sites.getSites().size());
 
-        if (sitePageService.getSiteMapBuildersSize() > 0) {//indexing ******
+        if (!siteAndPageService.isIndexing()) {//indexing ******
             total.setIndexing(true);
         } else {
             total.setIndexing(false);

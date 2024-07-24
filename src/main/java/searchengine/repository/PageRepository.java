@@ -1,9 +1,7 @@
 package searchengine.repository;
 
-import org.apache.catalina.WebResource;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
-import searchengine.dto.IndexDTO;
 import searchengine.model.PageEntity;
 import searchengine.model.SiteEntity;
 

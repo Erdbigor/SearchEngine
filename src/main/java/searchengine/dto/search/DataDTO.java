@@ -1,4 +1,4 @@
-package searchengine.dto;
+package searchengine.dto.search;
 
 @lombok.Data
 public class DataDTO {
@@ -8,6 +8,6 @@ public class DataDTO {
     String uri;
     String title;
     String snippet;
-    String relevance;
+    float relevance;
 
 }

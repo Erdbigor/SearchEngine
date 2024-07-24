@@ -32,9 +32,9 @@ indexing-settings:
   sites:
     - url: https://olkhovskaya.com
       name: olkhovskaya
-    - url: https://sendel.ru/shorts/
+    - url: https://sendel.ru
       name: SenDel
-    - url: https://gobi.ee/ru
+    - url: https://gobi.ee
       name: GOBI
 #    - url: https://skillbox.ru/sale/main/
 #      name: Skillbox.ru
