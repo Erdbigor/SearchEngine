@@ -21,6 +21,7 @@ import searchengine.repository.PageRepository;
 import searchengine.repository.SiteRepository;
 
 import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @Service
 @RequiredArgsConstructor
@@ -34,10 +35,10 @@ public class SearchService {
     private final WordsService wordsService;
     private final SnippedService snippedService;
     public List<DataDTO> resultDataDTOList;
-    public boolean isSearch;
+    public final AtomicBoolean isSearch = new AtomicBoolean(false);
 
     public List<DataDTO> searchResult(String query, String site, int offset, int limit, double frequencyThreshold) {
-        isSearch = true;
+        isSearch.set(true);
         List<String> wordsBaseForms = getWordBaseForms(query, site, offset, limit);
         valueLogger.info("wordsBaseForms: " + wordsBaseForms);
         List<LemmaDTO> filteredSortedLemmas = filteringSortingLemmas(wordsBaseForms, frequencyThreshold);
@@ -57,7 +58,7 @@ public class SearchService {
                 resultDataDTOList = snippedService.resultDataDTOs(relevanceList);
             } else resultDataDTOList = new ArrayList<>();
 
-            isSearch = false;
+            isSearch.set(false);
             valueLogger.info("Поиск завершен!".toUpperCase());
         }
         return resultDataDTOList;
@@ -240,4 +241,7 @@ public class SearchService {
         return lemmaRankDTOList;
     }
 
+    public void setIsSearch(boolean flag) {
+        isSearch.set(flag);
+    }
 }

@@ -30,7 +30,7 @@ public class PageEntity {
     @Column(nullable = false, length = 16777215)
     private String content;
 
-    @OneToMany(mappedBy = "page", cascade = CascadeType.REMOVE)
+    @OneToMany(mappedBy = "page", cascade = CascadeType.ALL)
     private List<IndexEntity> indexes;
 
 }

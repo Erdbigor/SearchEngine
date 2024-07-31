@@ -23,7 +23,7 @@ public class LemmaEntity {
     @Column(nullable = false)
     private int frequency;
 
-    @OneToMany(mappedBy = "lemma", cascade = CascadeType.REMOVE)
+    @OneToMany(mappedBy = "lemma", cascade = CascadeType.ALL)
     private List<IndexEntity> indexes;
 
 }

@@ -18,4 +18,6 @@ public interface IndexRepository extends JpaRepository<IndexEntity, Long> {
 
     List<IndexEntity> findByPageId(long id);
 
+    int countByPageId(long id);
+
 }

@@ -14,11 +14,9 @@ public interface LemmaRepository extends JpaRepository<LemmaEntity, Long> {
 
     LemmaEntity findByLemma(String lemma);
     LemmaEntity getByLemma(String lemma);
-    LemmaEntity getBySite(SiteEntity siteEntity);
 
     List<LemmaEntity> findBySite(SiteEntity siteEntity);
     @Query("SELECT MAX(i.frequency) FROM LemmaEntity i")
     int findMaxFrequency();
 
-    LemmaEntity getById(long id);
 }

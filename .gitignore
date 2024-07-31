@@ -35,3 +35,4 @@ build/
 
 ### My comment ###
 *.docx
+/src/main/java/searchengine/trash/

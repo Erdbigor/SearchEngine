@@ -8,15 +8,12 @@ import searchengine.model.SiteEntity;
 import java.util.List;
 
 @Repository
-public interface PageRepository extends JpaRepository<PageEntity,Long> {
-    boolean findByPath(String url);
-    PageEntity getPageEntityByPath(String url);
-
-    PageEntity getBySite(SiteEntity siteEntity);
+public interface PageRepository extends JpaRepository<PageEntity, Long> {
+    PageEntity findByPath(String url);
 
     List<PageEntity> findBySite(SiteEntity siteEntity);
-    PageEntity findById(long id);
 
     List<PageEntity> findBySiteId(long id);
+
 
 }
