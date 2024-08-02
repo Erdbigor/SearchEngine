@@ -6,6 +6,7 @@ import org.apache.lucene.morphology.russian.RussianLuceneMorphology;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.stereotype.Service;
 import searchengine.dto.indexing.IndexingDTO;
 import searchengine.errorHandling.IndexingErrorEvent;
@@ -20,13 +21,10 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ForkJoinPool;
 
 @Service
 @RequiredArgsConstructor
+@EnableAsync
 public class LemmaAndIndexService {
 
     private final PageRepository pageRepository;
@@ -36,7 +34,7 @@ public class LemmaAndIndexService {
     private static final Logger valueLogger = LoggerFactory.getLogger("value-logger");
     private final ApplicationEventPublisher eventPublisher;
 
-    public void indexingAllOrPageManager(boolean isPageIndexing, String indexedPageUrl) {
+    public void switchAllOrPageManager(boolean isPageIndexing, String indexedPageUrl) {
         if (SiteAndPageService.isInterrupted().get()) return;
         if (!isPageIndexing) {
             pageRepository.findAll().stream()
@@ -66,12 +64,15 @@ public class LemmaAndIndexService {
         List<String> listWords = wordsService.getWords(// получаем слова
                 pageEntity, null, null, null, null);
         List<String> wordBaseForms = getWordBaseForms(listWords);// получаем словоформы
+
         wordBaseForms.stream()
+
                 .filter(lemma -> !SiteAndPageService.isInterrupted().get())
                 .forEach(lemma -> {
                     updateLemma(lemma, pageEntity);
                 });
-        lemmaRepository.findAll().stream()
+
+        lemmaRepository.findAll().parallelStream() // Параллельные потоки
                 .filter(lemmaEntity -> !SiteAndPageService.isInterrupted().get())
                 .forEach(lemmaEntity -> updateIndex(pageEntity, lemmaEntity));
     }
@@ -100,6 +101,7 @@ public class LemmaAndIndexService {
     }
 
     private void updateLemma(String lemma, PageEntity pageEntity) {
+//        valueLogger.info("Start updateLemma for: " + lemma + " - " + pageEntity.getPath());
         if (SiteAndPageService.isInterrupted().get()) return;
         LemmaEntity lemmaEntity;
         if (lemmaRepository.findByLemma(lemma) != null) {
@@ -115,8 +117,8 @@ public class LemmaAndIndexService {
             lemmaEntity.setSite(pageEntity.getSite());
         }
         lemmaRepository.save(lemmaEntity);
+//        valueLogger.info("End updateLemma for: "  + lemma +  " - " + pageEntity.getPath());
     }
-
 
     private void updateIndex(PageEntity pageEntity, LemmaEntity lemmaEntity) {
         if (SiteAndPageService.isInterrupted().get()) return;

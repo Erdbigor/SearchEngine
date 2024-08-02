@@ -1,9 +1,12 @@
 package searchengine.services;
 
 import lombok.RequiredArgsConstructor;
+import org.jsoup.UnsupportedMimeTypeException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.DataAccessResourceFailureException;
+import org.springframework.orm.jpa.JpaSystemException;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.stereotype.Service;
@@ -11,6 +14,7 @@ import searchengine.config.Site;
 import searchengine.config.SitesList;
 import searchengine.dto.db.PageDTO;
 import searchengine.dto.indexing.IndexingDTO;
+import searchengine.errorHandling.ExceptionHandler_SE;
 import searchengine.errorHandling.IndexingErrorEvent;
 import searchengine.model.PageEntity;
 import searchengine.model.SiteEntity;
@@ -24,6 +28,8 @@ import javax.sound.sampled.AudioInputStream;
 import javax.sound.sampled.AudioSystem;
 import javax.sound.sampled.Clip;
 import java.io.File;
+import java.io.IOException;
+import java.net.ConnectException;
 import java.net.URL;
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -32,8 +38,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 @Service
@@ -50,46 +54,47 @@ public class SiteAndPageService {
     private final SitesList sitesList;
     private static final AtomicBoolean isInterrupted = new AtomicBoolean(false);
     private final AtomicBoolean isIndexing = new AtomicBoolean();
+    private final AtomicBoolean isServerErr = new AtomicBoolean();
     private final ApplicationEventPublisher eventPublisher;
+    private final ExceptionHandler_SE exceptionHandler;
 
     @Async
     public void siteAndPageUpdateManager(Boolean isPageIndexing, String indexedPageUrl, Site pagesSite) {
         valueLogger.info("Индексация начата.".toUpperCase());
         isIndexing.set(true);
+        isServerErr.set(false);
         LocalDateTime start = LocalDateTime.now();
         isInterrupted.set(false);
-        List<Runnable> tasks = new ArrayList<>();
 
-            try {
-                if (!isPageIndexing) {
-                    sitesList.getSites().forEach(site -> {
-                        valueLogger.info("Удаление записей " + site.getUrl());
-                        siteRepository.deleteByUrl(site.getUrl());
-                    });
-                    sitesList.getSites().parallelStream()
-                            .forEach(site -> processSite(site, indexedPageUrl, isPageIndexing));
-                } else {
-                    if (SiteAndPageService.isInterrupted().get()) return;
-                    valueLogger.info("Удаление записей " + indexedPageUrl);
-                    siteRepository.deleteByUrl(indexedPageUrl);
-                    processSite(pagesSite, indexedPageUrl, isPageIndexing);
-                }
-
-                lemmaAndIndexService.indexingAllOrPageManager(isPageIndexing, indexedPageUrl);
-
-                isIndexing.set(false);
-                setSitesStatus();
-                Duration duration = Duration.between(start, LocalDateTime.now());
-                valueLogger.info(("Индексация завершена").toUpperCase() + " за ".toUpperCase()
-                        + duration.getSeconds() + " сек.".toUpperCase());
-                playSound();
-            } catch (Exception e) {
-                isIndexing.set(false);
-                IndexingDTO indexingErrorDTO = new IndexingDTO(
-                        false, e.getClass().toString());
-                valueLogger.error("siteAndPageUpdateManager: " + indexingErrorDTO.getError());
-                eventPublisher.publishEvent(new IndexingErrorEvent(this, indexingErrorDTO));
+        try {
+            if (!isPageIndexing) {
+                sitesList.getSites().forEach(site -> {
+                    valueLogger.info("Удаление записей " + site.getUrl());
+                    siteRepository.deleteByUrl(site.getUrl());
+                });
+                sitesList.getSites().parallelStream() // ---
+                        .forEach(site -> processSite(site, indexedPageUrl, isPageIndexing));
+            } else {
+                if (SiteAndPageService.isInterrupted().get()) return;
+                valueLogger.info("Удаление записей " + indexedPageUrl);
+                siteRepository.deleteByUrl(indexedPageUrl);
+                processSite(pagesSite, indexedPageUrl, isPageIndexing);
             }
+
+            lemmaAndIndexService.switchAllOrPageManager(isPageIndexing, indexedPageUrl);
+
+            isIndexing.set(false);
+            setSitesStatus();
+            Duration duration = Duration.between(start, LocalDateTime.now());
+            valueLogger.info(("Индексация завершена").toUpperCase() + " за ".toUpperCase()
+                    + duration.getSeconds() + " сек.".toUpperCase());
+            playSound();
+        } catch (Exception e) {
+            valueLogger.error("ERROR in siteAndPageUpdateManager: " + e.getClass());
+            isIndexing.set(false);
+            isServerErr.set(true);
+            exceptionHandler.handleException(e);
+        }
 
     }
 
@@ -104,13 +109,12 @@ public class SiteAndPageService {
 
     }
 
-
     protected HashMap<String, PageDTO> scanSite(SiteEntity siteEntity, boolean isPageIndexing, String indexedPageUrl) {
         HashMap<String, PageDTO> siteMap = new HashMap<>();
 
         try {
             String url = !isPageIndexing ? siteEntity.getUrl() : indexedPageUrl;
-            SiteMapBuilder siteMapBuilder = new SiteMapBuilder(siteRepository, siteEntity, isPageIndexing, url);
+            SiteMapBuilder siteMapBuilder = new SiteMapBuilder(siteRepository, siteEntity, isPageIndexing, url, null);
             siteMapBuilders.add(siteMapBuilder);
             siteMap = (HashMap<String, PageDTO>) siteMapBuilder.buildSiteMap();
             valueLogger.info("Сканирование " + url + " завершено. Количество страниц: "
@@ -118,11 +122,8 @@ public class SiteAndPageService {
             siteMapBuilders.clear();
         } catch (Exception e) {
             siteMapBuilders.clear();
-            IndexingDTO indexingErrorDTO = new IndexingDTO(
-                    false, "Невозможно установить связь с сервером!");
-            eventPublisher.publishEvent(new IndexingErrorEvent(this, indexingErrorDTO));
+            exceptionHandler.handleExceptionNet(e, siteEntity);
         }
-
         return siteMap;
     }
 
@@ -186,10 +187,14 @@ public class SiteAndPageService {
         try {
             URL newUrl = new URL(url);
             host = newUrl.getHost();
-        } catch (Exception ignored) {
-            valueLogger.info("error in getHostName()".toUpperCase());
+        } catch (Exception e) {
+            valueLogger.info("ERROR in getHostName(): " + e.getClass());
         }
         return host;
+    }
+
+    public AtomicBoolean getIsServerErr() {
+        return isServerErr;
     }
 
     private void setSitesStatus() {
@@ -224,8 +229,8 @@ public class SiteAndPageService {
             Clip clip = AudioSystem.getClip();
             clip.open(audioIn);
             clip.start();
-        } catch (Exception ignored) {
-            valueLogger.info("error in playSound()".toUpperCase());
+        } catch (Exception e) {
+            valueLogger.info("ERROR in playSound(): " + e.getClass());
         }
     }
 
