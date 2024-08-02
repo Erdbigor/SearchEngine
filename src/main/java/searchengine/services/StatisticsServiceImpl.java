@@ -1,6 +1,8 @@
 package searchengine.services;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.event.EventListener;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import searchengine.config.Site;
 import searchengine.config.SitesList;
@@ -9,6 +11,7 @@ import searchengine.dto.statistics.DetailedStatisticsItem;
 import searchengine.dto.statistics.StatisticsData;
 import searchengine.dto.statistics.StatisticsResponse;
 import searchengine.dto.statistics.TotalStatistics;
+import searchengine.exception.IndexingErrorEvent;
 import searchengine.model.SiteEntity;
 import searchengine.repository.LemmaRepository;
 import searchengine.repository.PageRepository;
@@ -17,6 +20,7 @@ import searchengine.repository.SiteRepository;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 @Service
 @RequiredArgsConstructor
@@ -27,14 +31,27 @@ public class StatisticsServiceImpl implements StatisticsService {
     private final SiteRepository siteRepository;
     private final PageRepository pageRepository;
     private final LemmaRepository lemmaRepository;
+    private IndexingDTO lastError;
+
+    @EventListener
+    public void handleIndexingError(IndexingErrorEvent event) {
+        this.lastError = event.getIndexingErrorDTO();
+    }
 
     @Override
-    public Object getStatistics() {
-
+    public CompletableFuture<ResponseEntity<Object>> getStatistics() {
+        CompletableFuture<ResponseEntity<Object>> future = new CompletableFuture<>();
+        if (lastError != null) {
+            IndexingDTO response = new IndexingDTO(false, lastError.getError());
+            future.complete(ResponseEntity.ok(response));
+            lastError = null;
+            System.out.println(response.getError());
+            return future;
+        }
         TotalStatistics total = new TotalStatistics();
         total.setSites(sites.getSites().size());
 
-        if (!siteAndPageService.isIndexing().get()) {//indexing ******
+        if (!siteAndPageService.getIsIndexing().get()) {//indexing ******
             total.setIndexing(true);
         } else {
             total.setIndexing(false);
@@ -63,15 +80,16 @@ public class StatisticsServiceImpl implements StatisticsService {
                 detailed.add(item);
             }
         } catch (NullPointerException ne) {
-            return new IndexingDTO(false, "Необходима индексация");
+            future.complete(ResponseEntity.ok(new IndexingDTO(false, "Необходима индексация")));
+            return future;
         }
-
         StatisticsResponse response = new StatisticsResponse();
         StatisticsData data = new StatisticsData();
         data.setTotal(total);
         data.setDetailed(detailed);
         response.setStatistics(data);
         response.setResult(true);
-        return response;
+        future.complete(ResponseEntity.ok(response));
+        return future;
     }
 }

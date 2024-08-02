@@ -1,5 +1,9 @@
 package searchengine.services;
 
+import org.springframework.http.ResponseEntity;
+
+import java.util.concurrent.CompletableFuture;
+
 public interface StatisticsService {
-    Object getStatistics();
+    CompletableFuture<ResponseEntity<Object>> getStatistics();
 }

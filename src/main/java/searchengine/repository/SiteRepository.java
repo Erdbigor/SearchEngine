@@ -13,4 +13,5 @@ public interface SiteRepository extends JpaRepository<SiteEntity, Long> {
     void deleteByUrl(String url);
 
     SiteEntity getByUrl(String url);
+
 }

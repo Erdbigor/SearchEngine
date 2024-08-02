@@ -6,11 +6,14 @@ import org.apache.lucene.morphology.russian.RussianLuceneMorphology;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import searchengine.dto.indexing.IndexingDTO;
 import searchengine.dto.search.DataDTO;
 import searchengine.dto.db.IndexDTO;
 import searchengine.dto.db.LemmaDTO;
 import searchengine.dto.search.LemmaRankDTO;
 import searchengine.dto.search.RelevanceDTO;
+import searchengine.dto.search.SearchDTO;
+import searchengine.mappers.SearchMapper;
 import searchengine.model.IndexEntity;
 import searchengine.model.LemmaEntity;
 import searchengine.model.PageEntity;
@@ -21,6 +24,7 @@ import searchengine.repository.PageRepository;
 import searchengine.repository.SiteRepository;
 
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 @Service
@@ -36,8 +40,28 @@ public class SearchService {
     private final SnippedService snippedService;
     public List<DataDTO> resultDataDTOList;
     public final AtomicBoolean isSearch = new AtomicBoolean(false);
+    private final SearchMapper searchMapper;
+    private final SiteAndPageService siteAndPageService;
 
-    public List<DataDTO> searchResult(String query, String site, int offset, int limit, double frequencyThreshold) {
+    public CompletableFuture<SearchDTO> searchResult(String query, String site, Integer offset, Integer limit, double frequencyThreshold) {
+        AtomicBoolean isIndexing = siteAndPageService.getIsIndexing();
+        CompletableFuture<SearchDTO> future = new CompletableFuture<>();
+        if (isSearch.get()) {
+            future.complete(new SearchDTO(false, 0, "Поиск уже идёт!", new ArrayList<>()));
+            return future;
+        }
+        if (query.isEmpty()) {
+            future.complete(searchMapper.map(false, offset, limit, isIndexing.get(), new ArrayList<>()));
+            return future;
+        }
+        site = site == null ? "all_site" : site;
+        offset = (offset == null) ? 0 : offset;
+        limit = limit == null ? 20 : limit;
+        valueLogger.info("query: " + query);
+        valueLogger.info("site: " + site);
+        valueLogger.info("offset: " + offset);
+        valueLogger.info("limit: " + limit);
+        valueLogger.info("frequencyThreshold: " + frequencyThreshold);
         isSearch.set(true);
         List<String> wordsBaseForms = getWordBaseForms(query, site, offset, limit);
         valueLogger.info("wordsBaseForms: " + wordsBaseForms);
@@ -54,14 +78,16 @@ public class SearchService {
             List<RelevanceDTO> relevanceList = getRelevanceList(foundByQueryIndexList);
             valueLogger.info("relevanceList.size(): " + relevanceList.size());
             relevanceList.forEach(relevanceDTO -> valueLogger.info(relevanceDTO.toString()));
-            if (relevanceList.size()>0) {
+            if (relevanceList.size() > 0) {
                 resultDataDTOList = snippedService.resultDataDTOs(relevanceList);
             } else resultDataDTOList = new ArrayList<>();
 
             isSearch.set(false);
             valueLogger.info("Поиск завершен!".toUpperCase());
         }
-        return resultDataDTOList;
+        setIsSearch(false);
+        future.complete(searchMapper.map(true, offset, limit, isIndexing.get(), resultDataDTOList));
+        return future;
     }
 
     private List<String> getWordBaseForms(String query, String site, Integer offset, Integer limit) {

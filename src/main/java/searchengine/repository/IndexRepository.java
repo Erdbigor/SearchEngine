@@ -20,4 +20,7 @@ public interface IndexRepository extends JpaRepository<IndexEntity, Long> {
 
     int countByPageId(long id);
 
+    void deleteByPageId(long id);
+
+
 }

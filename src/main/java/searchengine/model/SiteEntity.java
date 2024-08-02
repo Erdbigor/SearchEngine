@@ -32,10 +32,10 @@ public class SiteEntity {
     @Column(nullable = false)
     private String name;
 
-    @OneToMany(mappedBy = "site", cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "site", cascade = CascadeType.REMOVE)
     private List<PageEntity> pages;
 
-    @OneToMany(mappedBy = "site", cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "site", cascade = CascadeType.REMOVE)
     private List<LemmaEntity> lemmas;
 
 }
