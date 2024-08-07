@@ -1,10 +1,8 @@
 package searchengine.SiteScaning;
 
 import lombok.RequiredArgsConstructor;
-import org.apache.http.client.ClientProtocolException;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
-import org.apache.http.conn.HttpHostConnectException;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.util.EntityUtils;
@@ -16,17 +14,16 @@ import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.context.ApplicationEventPublisher;
 import org.yaml.snakeyaml.Yaml;
 import searchengine.dto.db.PageDTO;
-import searchengine.dto.indexing.IndexingDTO;
-import searchengine.exception.IndexingErrorEvent;
 import searchengine.model.SiteEntity;
 import searchengine.repository.SiteRepository;
 
-import javax.net.ssl.SSLHandshakeException;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.net.ConnectException;
+import java.net.NoRouteToHostException;
+import java.net.UnknownHostException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -53,7 +50,7 @@ public class SiteMapBuilder {
     private static String referrer;
     private static String links;
     private final String indexedPageUrl;
-    private final ApplicationEventPublisher eventPublisher;
+
 
     public Map<String, PageDTO> buildSiteMap() {
         try {
@@ -64,9 +61,9 @@ public class SiteMapBuilder {
             referrer = config.get("referrer");
             links = config.get("links");
         } catch (Exception e) {
-            valueLogger.error("ERROR in buildSiteMap()");
+            valueLogger.error("error in buildSiteMap()".toUpperCase());
         }
-        String url = !isPageIndexing ? siteEntity.getUrl() : indexedPageUrl;
+        String url = !isPageIndexing ?  siteEntity.getUrl() : indexedPageUrl;
         SiteMapRecursiveAction mainScan = new SiteMapRecursiveAction(url);
         pool.invoke(mainScan);
         pool.shutdown();
@@ -82,15 +79,10 @@ public class SiteMapBuilder {
             if (!isScanning.get()) {
                 return;
             }
-            Map<String, PageDTO> urlFoundLinks = null; // список найденных ссылок для текущего URL
-            try {
-                urlFoundLinks = parsingUrl(url);
-            } catch (IOException e) {
-                valueLogger.info("ERROR in compute()1");
-                throw new RuntimeException(e);
-            }
+            Map<String, PageDTO> urlFoundLinks = parsingUrl(url); // список найденных ссылок для текущего URL
             siteMap.putAll(urlFoundLinks); // добавляю его в основной siteMap
             visitLinks.add(url); // помечаю текущий URL как посещенный
+
             List<SiteMapRecursiveAction> scanTaskList = new ArrayList<>(); // Подготовка списка для сканирования
             urlFoundLinks.forEach((key, value) -> { // Sub-поиск для каждой ссылки из urlFoundLinks
                 if (!visitLinks.contains((String) key)) {
@@ -107,12 +99,13 @@ public class SiteMapBuilder {
             try {
                 TimeUnit.MILLISECONDS.sleep(150);
             } catch (InterruptedException e) {
-                valueLogger.info("ERROR IN compute()2");
+                valueLogger.info("ERROR IN compute()");
+
             }
         }
     }
 
-    private Map<String, PageDTO> parsingUrl(String url) throws IOException {
+    private Map<String, PageDTO> parsingUrl(String url) {
         Map<String, PageDTO> urlFoundLinks = new HashMap<>();
         CloseableHttpClient httpClient = HttpClients.createDefault();
         try {
@@ -126,12 +119,11 @@ public class SiteMapBuilder {
                     if (absLink.endsWith("/")) {
                         absLink = absLink.substring(0, absLink.length() - 1);
                     }
-
                     if (absLink.startsWith(!isPageIndexing ? siteEntity.getUrl() : indexedPageUrl)
                             && !urlFoundLinks.containsKey(absLink) && !absLink.contains("#")
                             && !absLink.contains("tags")
                             && !siteMap.containsKey(absLink)) {
-                        valueLogger.info("add: " + absLink);
+                        System.out.println("add: " + absLink);
                         HttpGet httpGet = new HttpGet(absLink);
                         String href = linkElement.attr("href"); // Получаем атрибут href элемента
                         PageDTO pageDTO = new PageDTO();
@@ -146,27 +138,51 @@ public class SiteMapBuilder {
                             pageDTO.setCode(code);
                             urlFoundLinks.put(absLink, pageDTO);
                         } catch (Exception e) {
-                            valueLogger.error("ERROR in parsingUrl_1: " + e.getClass());
-                            handleException(e);
+                            valueLogger.info("ERROR IN parsingUrl()1"  + e.getClass().getName());
+                            siteEntity.setLastError(e.getClass().toString());
                         }
                     }
                 }
             }
+            httpClient.close();
+        } catch (UnknownHostException ue) {
+            String error = "Неизвестный хост или нет доступа к интернет.";
+            valueLogger.error(error + " " + ue.getClass().toString());
+            siteEntity.setLastError(error);
+        } catch (UnsupportedMimeTypeException me) {
+            String error = "Неподдерживаемый MIME-тип.";
+            valueLogger.error(error + " " + me.getClass().toString());
+            siteEntity.setLastError(error);
+        } catch (ConnectException ce) {
+            String error = "Ошибка подключения.";
+            valueLogger.error(error + " " + ce.getClass().toString());
+            siteEntity.setLastError(error);
+        } catch (HttpStatusException he) {
+            String error = "Неверный HTTP-статус.";
+            valueLogger.error(error + " " + he.getClass().toString());
+            siteEntity.setLastError(error);
+        } catch (NoRouteToHostException nre) {
+            String error = "Невозможно установить соединение с удаленным узлом.";
+            valueLogger.error(error + " " + nre.getClass().toString());
+            siteEntity.setLastError(error);
+        }
+        catch (IOException e) {
+                valueLogger.error("ERROR IN parsingUrl()2" + e.getClass().getName());
+                siteEntity.setLastError(e.getClass().toString());
             try {
                 httpClient.close();
-            } catch (Exception e) {
-                valueLogger.error("ERROR in parsingUrl_2: " + e.getClass());
-                handleException(e);
+            } catch (IOException ignored) {
+                valueLogger.info("ERROR IN scanSite()".toUpperCase());
             }
         } catch (Exception e) {
-            valueLogger.error("ERROR in parsingUrl_3: " + e.getClass());
-            handleException(e);
+            valueLogger.error("ERROR IN parsingUrl()3".toUpperCase());
+            System.err.println(e.getClass());
         }
         siteRepository.save(siteEntity);
         return urlFoundLinks;
     }
 
-    public void setStatusTime() { //периодическое обновление поля 'StatusTime' в 'site'
+    private void setStatusTime() { //периодическое обновление поля 'StatusTime' в 'site'
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
         LocalDateTime now = LocalDateTime.now();
         String formattedDateTime = now.format(formatter);
@@ -179,32 +195,7 @@ public class SiteMapBuilder {
         try {
             pool.shutdown();
         } catch (Exception e) {
-            valueLogger.error("ERROR in stopScanning()");
-        }
-    }
-
-    private void handleException(Exception e) {
-        if (e instanceof ClientProtocolException) {
-            siteEntity.setLastError("Ошибка протокола");
-            siteRepository.save(siteEntity);
-        } else if (e instanceof SSLHandshakeException) {
-            siteEntity.setLastError("Ошибка сертификата");
-            siteRepository.save(siteEntity);
-        } else if (e instanceof HttpStatusException) {
-            siteEntity.setLastError("Неверный HTTP-статус");
-            siteRepository.save(siteEntity);
-        } else if (e instanceof UnsupportedMimeTypeException) {
-            siteEntity.setLastError("Неподдерживаемый MIME-тип");
-            siteRepository.save(siteEntity);
-        } else if (e instanceof HttpHostConnectException) {
-            siteEntity.setLastError("HttpHostConnectException");
-            siteRepository.save(siteEntity);
-        } else {
-            siteEntity.setLastError(e.getClass().toString());
-            siteRepository.save(siteEntity);
-            valueLogger.error("This is handleExceptionOfSiteMapBuilder");
-            IndexingDTO indexingErrorDTO = new IndexingDTO(false, e.getMessage());
-            eventPublisher.publishEvent(new IndexingErrorEvent(this, indexingErrorDTO));
+            valueLogger.info("error in stopScanning()".toUpperCase());
         }
     }
 }

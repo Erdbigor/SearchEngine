@@ -3,6 +3,7 @@ package searchengine.services;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.stereotype.Service;
@@ -10,11 +11,12 @@ import searchengine.config.Site;
 import searchengine.config.SitesList;
 import searchengine.dto.db.PageDTO;
 import searchengine.dto.indexing.IndexingDTO;
-import searchengine.exception.ExceptionHandlerController;
-import searchengine.model.*;
+import searchengine.errorHandling.IndexingErrorEvent;
+import searchengine.model.PageEntity;
+import searchengine.model.SiteEntity;
+import searchengine.model.SiteStatus;
 import searchengine.SiteScaning.SiteMapBuilder;
 import searchengine.repository.IndexRepository;
-import searchengine.repository.LemmaRepository;
 import searchengine.repository.PageRepository;
 import searchengine.repository.SiteRepository;
 
@@ -26,11 +28,13 @@ import java.net.URL;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.*;
-import java.util.concurrent.CompletableFuture;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 @Service
 @RequiredArgsConstructor
@@ -43,153 +47,94 @@ public class SiteAndPageService {
     private final IndexRepository indexRepository;
     private final SiteRepository siteRepository;
     private final PageRepository pageRepository;
-    private final LemmaRepository lemmaRepository;
     private final SitesList sitesList;
     private static final AtomicBoolean isInterrupted = new AtomicBoolean(false);
     private final AtomicBoolean isIndexing = new AtomicBoolean();
-    private final AtomicBoolean isServerErr = new AtomicBoolean();
-    private final ExceptionHandlerController exceptionHandler;
-    private AbstractMap.SimpleEntry<String, Site> siteAndUrlForIndexing;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Async
-    public CompletableFuture<IndexingDTO> siteAndPageUpdateManager(Boolean isPageIndexing, String indexedPageUrl) {
-        CompletableFuture<IndexingDTO> future = new CompletableFuture<>();
-        if (isPageIndexing) { // Блок проверки url в случае индексации отдельной страницы
-            boolean isUrlCorrect = checkIsUrlCorrect(indexedPageUrl); // Проверка формата url
-            if (!isUrlCorrect) {
-                future.complete(new IndexingDTO(false, "Неверный формат URL!"));
-                return future;
-            }
-            siteAndUrlForIndexing = getSiteAndUrlForIndexing(indexedPageUrl); // Проверка вхождения url в siteList
-            if (siteAndUrlForIndexing == null) {
-                future.complete(new IndexingDTO(
-                        false, "Данная страница находится за пределами сайтов, указанных в конфигурационном файле"));
-                return future;
-            }
-        }
-        if (isIndexing.get()) {
-            future.complete(new IndexingDTO(false, "Индексация уже запущена!"));
-            return future;
-        } else {
-            future.complete(new IndexingDTO(true, "Индексация начата."));
-            CompletableFuture.runAsync(() -> {
-                valueLogger.info("Индексация начата.".toUpperCase());
-                isIndexing.set(true);
-                isServerErr.set(false);
-                LocalDateTime start = LocalDateTime.now();
-                isInterrupted.set(false);
-                try {
-                    SiteEntity siteEntity;
-                    if (!isPageIndexing) {
-                        for (Site site : sitesList.getSites()) {
-                            if (SiteAndPageService.isInterrupted().get()) return;
-                            if (siteRepository.findByUrl(site.getUrl()) != null) {
-                                siteEntity = siteRepository.findByUrl(site.getUrl());
-                                List<PageEntity> pageEntities = pageRepository.findBySiteId(siteEntity.getId());
-                                valueLogger.info("Удаление записей " + site.getUrl());
-                                for (PageEntity pageEntity : pageEntities) {
-                                    List<IndexEntity> indexEntities = indexRepository.findByPageId(pageEntity.getId());
-                                    indexRepository.deleteAllInBatch(indexEntities);
-                                }
-                                List<LemmaEntity> lemmaEntities = lemmaRepository.findBySite(siteEntity);
-                                for (LemmaEntity lemmaEntity : lemmaEntities) {
-                                    List<IndexEntity> indexEntities = indexRepository.findByLemma_Id(lemmaEntity.getId());
-                                    indexRepository.deleteAllInBatch(indexEntities);
-                                }
-                                lemmaRepository.deleteAllInBatch(lemmaEntities);
-                                pageRepository.deleteAllInBatch(pageEntities);
-                            }
-                        }
-                        sitesList.getSites().parallelStream()
-                                .forEach(site -> processSite(site, indexedPageUrl, isPageIndexing));
-                    } else {
-                        Site pagesSite = siteAndUrlForIndexing.getValue();
-                        String pageUrl = siteAndUrlForIndexing.getKey();
-                        if (pageUrl != null) {
-                            if (SiteAndPageService.isInterrupted().get()) return;
-                            URL parsedUrl = new URL(pageUrl);
-                            String path = parsedUrl.getPath();
-                            if (pageRepository.findByPath(path) != null) {
-                                PageEntity pageEntity = pageRepository.findByPath(path);
-                                List<IndexEntity> indexEntities = indexRepository.findByPageId(pageEntity.getId());
-                                indexRepository.deleteAllInBatch(indexEntities);
-                            }
-                            processSite(pagesSite, pageUrl, isPageIndexing);
-                        }
-                    }
-                    lemmaAndIndexService.switchAllOrPageManager(isPageIndexing, indexedPageUrl);
-                    isIndexing.set(false);
-                    setSitesStatus();
-                    Duration duration = Duration.between(start, LocalDateTime.now());
-                    valueLogger.info(("Индексация завершена").toUpperCase() + " за ".toUpperCase()
-                            + duration.getSeconds() + " сек.".toUpperCase());
-                    beep();
-                } catch (Exception e) {
-                    valueLogger.error("ERROR in siteAndPageUpdateManager: " + e.getClass());
-                    isIndexing.set(false);
-                    isServerErr.set(true);
-                    exceptionHandler.handleException(e);
+    public void siteAndPageUpdateManager(Boolean isPageIndexing, String indexedPageUrl, Site pagesSite) {
+        valueLogger.info("Индексация начата.".toUpperCase());
+        isIndexing.set(true);
+        LocalDateTime start = LocalDateTime.now();
+        isInterrupted.set(false);
+        List<Runnable> tasks = new ArrayList<>();
+
+            try {
+                if (!isPageIndexing) {
+                    sitesList.getSites().forEach(site -> {
+                        valueLogger.info("Удаление записей " + site.getUrl());
+                        siteRepository.deleteByUrl(site.getUrl());
+                    });
+                    sitesList.getSites().parallelStream()
+                            .forEach(site -> processSite(site, indexedPageUrl, isPageIndexing));
+                } else {
+                    if (SiteAndPageService.isInterrupted().get()) return;
+                    valueLogger.info("Удаление записей " + indexedPageUrl);
+                    siteRepository.deleteByUrl(indexedPageUrl);
+                    processSite(pagesSite, indexedPageUrl, isPageIndexing);
                 }
-            });
-            return future;
-        }
 
-    }
+                lemmaAndIndexService.indexingAllOrPageManager(isPageIndexing, indexedPageUrl);
 
-    private boolean checkIsUrlCorrect(String indexedPageUrl) {
-
-        String urlRegex = "^(https?://)?(www\\.)?([-a-zA-Z0-9@:%._+~#=]{2,256}\\.[a-z]{2,6})\\b([-a-zA-Z0-9@:%_+.~#?&//=]*)$";
-        Pattern pattern = Pattern.compile(urlRegex);
-        String trimUrl = indexedPageUrl.trim();
-        Matcher matcher = pattern.matcher(trimUrl);
-        if (!matcher.matches()) {
-            return false;
-        } else return true;
-    }
-
-    private AbstractMap.SimpleEntry<String, Site> getSiteAndUrlForIndexing(String indexedPageUrl) {
-        String trimUrl = indexedPageUrl.trim();
-        AbstractMap.SimpleEntry<String, Site> siteAndPageIndexed = null;
-        boolean siteFound = false;
-        for (Site site : sitesList.getSites()) {
-            if (trimUrl.startsWith(site.getUrl())) {
-                siteFound = true;
-                siteAndPageIndexed = new AbstractMap.SimpleEntry<>(trimUrl, site);
-                break;
+                isIndexing.set(false);
+                setSitesStatus();
+                Duration duration = Duration.between(start, LocalDateTime.now());
+                valueLogger.info(("Индексация завершена").toUpperCase() + " за ".toUpperCase()
+                        + duration.getSeconds() + " сек.".toUpperCase());
+                playSound();
+            } catch (Exception e) {
+                isIndexing.set(false);
+                IndexingDTO indexingErrorDTO = new IndexingDTO(
+                        false, e.getClass().toString());
+                valueLogger.error("siteAndPageUpdateManager: " + indexingErrorDTO.getError());
+                eventPublisher.publishEvent(new IndexingErrorEvent(this, indexingErrorDTO));
             }
-        }
-        if (!siteFound) {
-            return null;
-        }
-        return siteAndPageIndexed;
+
     }
 
-    private void processSite(Site site, String indexedPageUrl, boolean isPageIndexing) {
+    protected void processSite(Site site, String indexedPageUrl, boolean isPageIndexing) {
 
         SiteEntity siteEntity;
         String url = !isPageIndexing ? site.getUrl() : indexedPageUrl;
         siteEntity = updateSite(site.getUrl(), isPageIndexing);
-        siteRepository.save(siteEntity);
         valueLogger.info("Сканирование " + (!isPageIndexing ? url : indexedPageUrl) + "...");
         HashMap<String, PageDTO> siteMap = scanSite(siteEntity, isPageIndexing, indexedPageUrl);
         updatePage(siteMap, siteEntity);
 
     }
 
-    private SiteEntity updateSite(String siteUrl, boolean isPageIndexing) {
 
+    protected HashMap<String, PageDTO> scanSite(SiteEntity siteEntity, boolean isPageIndexing, String indexedPageUrl) {
+        HashMap<String, PageDTO> siteMap = new HashMap<>();
+
+        try {
+            String url = !isPageIndexing ? siteEntity.getUrl() : indexedPageUrl;
+            SiteMapBuilder siteMapBuilder = new SiteMapBuilder(siteRepository, siteEntity, isPageIndexing, url);
+            siteMapBuilders.add(siteMapBuilder);
+            siteMap = (HashMap<String, PageDTO>) siteMapBuilder.buildSiteMap();
+            valueLogger.info("Сканирование " + url + " завершено. Количество страниц: "
+                    + siteMap.size() + ".");
+            siteMapBuilders.clear();
+        } catch (Exception e) {
+            siteMapBuilders.clear();
+            IndexingDTO indexingErrorDTO = new IndexingDTO(
+                    false, "Невозможно установить связь с сервером!");
+            eventPublisher.publishEvent(new IndexingErrorEvent(this, indexingErrorDTO));
+        }
+
+        return siteMap;
+    }
+
+    private SiteEntity updateSite(String siteUrl, boolean isPageIndexing) {
         SiteEntity siteEntity;
         if (!isPageIndexing) {
-            if (siteRepository.findByUrl(siteUrl) != null) { //проверка отсутствия сайта в таблице
-                siteEntity = siteRepository.getByUrl(siteUrl);
-            } else {
-                siteEntity = new SiteEntity();
-                siteEntity.setName(getHostName(siteUrl));
-                if (siteUrl.endsWith("/")) {
-                    siteUrl = siteUrl.substring(0, siteUrl.length() - 1);
-                }
-                siteEntity.setUrl(siteUrl);
+            siteEntity = new SiteEntity();
+            siteEntity.setName(getHostName(siteUrl));
+            if (siteUrl.endsWith("/")) {
+                siteUrl = siteUrl.substring(0, siteUrl.length() - 1);
             }
+            siteEntity.setUrl(siteUrl);
         } else {
             siteEntity = siteRepository.getByUrl(siteUrl);
         }
@@ -199,25 +144,8 @@ public class SiteAndPageService {
         LocalDateTime now = LocalDateTime.now();
         String formattedDateTime = now.format(formatter);
         siteEntity.setStatusTime(LocalDateTime.parse(formattedDateTime, formatter));
+        siteRepository.save(siteEntity);
         return siteEntity;
-    }
-
-    private HashMap<String, PageDTO> scanSite(SiteEntity siteEntity, boolean isPageIndexing, String indexedPageUrl) {
-        HashMap<String, PageDTO> siteMap = new HashMap<>();
-
-        try {
-            String url = !isPageIndexing ? siteEntity.getUrl() : indexedPageUrl;
-            SiteMapBuilder siteMapBuilder = new SiteMapBuilder(siteRepository, siteEntity, isPageIndexing, url, null);
-            siteMapBuilders.add(siteMapBuilder);
-            siteMap = (HashMap<String, PageDTO>) siteMapBuilder.buildSiteMap();
-            valueLogger.info("Сканирование " + url + " завершено. Количество страниц: "
-                    + siteMap.size() + ".");
-            siteMapBuilders.clear();
-        } catch (Exception e) {
-            siteMapBuilders.clear();
-            exceptionHandler.handleExceptionNet(e, siteEntity);
-        }
-        return siteMap;
     }
 
     private void updatePage(Map<String, PageDTO> siteMap, SiteEntity siteEntity) {
@@ -236,7 +164,7 @@ public class SiteAndPageService {
         }
     }
 
-    public AtomicBoolean getIsIndexing() {
+    public AtomicBoolean isIndexing() {
         return isIndexing;
     }
 
@@ -244,21 +172,13 @@ public class SiteAndPageService {
         return isInterrupted;
     }
 
-    public CompletableFuture<IndexingDTO> stopScanning() {
+    public void stopScanning() {
         valueLogger.info("Остановка сканирования ...".toUpperCase());
-        CompletableFuture<IndexingDTO> future = new CompletableFuture<>();
-        if (isIndexing.get()) {
-            future.complete(new IndexingDTO(true, "Индексация будет остановлена!"));
-            CompletableFuture.runAsync(() -> {
-                isInterrupted.set(true);
-                for (SiteMapBuilder siteMapBuilder : siteMapBuilders) {
-                    siteMapBuilder.stopScanning();
-                }
-                siteMapBuilders.clear();
-            });
-            return future;
-        } else future.complete(new IndexingDTO(false, "Индексация не запущена."));
-        return future;
+        isInterrupted.set(true);
+        for (SiteMapBuilder siteMapBuilder : siteMapBuilders) {
+            siteMapBuilder.stopScanning();
+        }
+        siteMapBuilders.clear();
     }
 
     private String getHostName(String url) {
@@ -266,14 +186,10 @@ public class SiteAndPageService {
         try {
             URL newUrl = new URL(url);
             host = newUrl.getHost();
-        } catch (Exception e) {
-            valueLogger.info("ERROR in getHostName(): " + e.getClass());
+        } catch (Exception ignored) {
+            valueLogger.info("error in getHostName()".toUpperCase());
         }
         return host;
-    }
-
-    public AtomicBoolean getIsServerErr() {
-        return isServerErr;
     }
 
     private void setSitesStatus() {
@@ -300,7 +216,7 @@ public class SiteAndPageService {
         }
     }
 
-    public void beep() {
+    public void playSound() {
         try {
             File soundFile =
                     new File("src/main/java/searchengine/resources/nkzs.wav");
@@ -308,8 +224,8 @@ public class SiteAndPageService {
             Clip clip = AudioSystem.getClip();
             clip.open(audioIn);
             clip.start();
-        } catch (Exception e) {
-            valueLogger.info("ERROR in beep(): " + e.getClass());
+        } catch (Exception ignored) {
+            valueLogger.info("error in playSound()".toUpperCase());
         }
     }
 
