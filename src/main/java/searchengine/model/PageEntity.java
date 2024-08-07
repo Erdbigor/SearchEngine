@@ -2,7 +2,6 @@ package searchengine.model;
 
 import jakarta.persistence.*;
 import lombok.Data;
-import org.hibernate.annotations.Cascade;
 
 import java.util.List;
 

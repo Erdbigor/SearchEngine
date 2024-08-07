@@ -8,6 +8,7 @@ import searchengine.dto.search.SearchDTO;
 
 import java.util.ArrayList;
 import java.util.List;
+
 @Component
 public class SearchMapper {
 

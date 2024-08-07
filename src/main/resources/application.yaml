@@ -32,20 +32,20 @@ indexing-settings:
   sites:
     - url: https://olkhovskaya.com
       name: olkhovskaya
-    #    - url: https://sendel.ru
-    #      name: SenDel
+#    - url: https://sendel.ru
+#      name: SenDel
     - url: https://gobi.ee
       name: GOBI
-    #    - url: https://skillbox.ru/sale/main
-    #      name: Skillbox.ru
-    #    - url: https://suvorovmuseum.ru
-    #      name: Suvorovmuseum.ru
-    #    - url: https://volochek.life
-    #      name: Volochek.life
-    #    - url: https://ipfran.ru
-    #      name: ipfran.ru
-    #    - url: https://dimonvideo.ru
-    #      name: Dimonvideo.ru
+#    - url: https://skillbox.ru/sale/main
+#      name: Skillbox.ru
+#    - url: https://suvorovmuseum.ru
+#      name: Suvorovmuseum.ru
+#    - url: https://volochek.life
+#      name: Volochek.life
+#    - url: https://ipfran.ru
+#      name: ipfran.ru
+#    - url: https://dimonvideo.ru
+#      name: Dimonvideo.ru
 
 userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:127.0) Gecko/20100101 Firefox/127.0"
 referrer: "http://www.google.com"

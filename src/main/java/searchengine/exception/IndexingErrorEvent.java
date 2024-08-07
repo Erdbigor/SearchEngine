@@ -1,4 +1,5 @@
 package searchengine.exception;
+
 import searchengine.dto.indexing.IndexingDTO;
 
 public class IndexingErrorEvent {
@@ -8,6 +9,7 @@ public class IndexingErrorEvent {
         super();
         this.indexingErrorDTO = indexingErrorDTO;
     }
+
     public IndexingDTO getIndexingErrorDTO() {
         return indexingErrorDTO;
     }

@@ -6,7 +6,6 @@ import org.apache.lucene.morphology.russian.RussianLuceneMorphology;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-import searchengine.dto.indexing.IndexingDTO;
 import searchengine.dto.search.DataDTO;
 import searchengine.dto.db.IndexDTO;
 import searchengine.dto.db.LemmaDTO;

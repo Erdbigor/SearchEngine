@@ -52,7 +52,7 @@ public class ApiController {
 
     @PostMapping("/indexPage")
     public IndexingDTO indexPage(@RequestParam(value = "url") String url) {
-        CompletableFuture<IndexingDTO> future = siteAndPageService.siteAndPageUpdateManager(true, url);
+        CompletableFuture<IndexingDTO> future = siteAndPageService.siteAndPageUpdateManager(true, url.trim());
         return future.join();
     }
 

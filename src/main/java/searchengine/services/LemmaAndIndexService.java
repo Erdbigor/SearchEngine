@@ -136,5 +136,4 @@ public class LemmaAndIndexService {
         indexRepository.save(indexEntity);
     }
 
-
 }

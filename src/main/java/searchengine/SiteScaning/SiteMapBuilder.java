@@ -51,7 +51,6 @@ public class SiteMapBuilder {
     private static String links;
     private final String indexedPageUrl;
 
-
     public Map<String, PageDTO> buildSiteMap() {
         try {
             FileInputStream inputStream = new FileInputStream("src/main/resources/application.yaml");
